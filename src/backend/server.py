@@ -10,7 +10,7 @@ from threading import Condition
 from typing import Optional, Set
 
 from aiohttp import web, WSMsgType
-from gpiozero import Button
+from gpiozero import Button, LED
 from picamera2 import Picamera2
 from picamera2.encoders import MJPEGEncoder
 from picamera2.outputs import FileOutput
@@ -25,6 +25,8 @@ WEB_DIR = os.environ.get("WEB_DIR",
 HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
 BTN_SNAPSHOT = int(os.environ.get("BTN_SNAPSHOT", "17"))
 BTN_MODE = int(os.environ.get("BTN_MODE", "27"))
+LED_POWER = int(os.environ.get("LED_POWER", "5"))
+LED_SENSE = int(os.environ.get("LED_SENSE", "6"))
 
 class StreamingOutput(io.BufferedIOBase):
     """
@@ -52,6 +54,10 @@ class AppState:
         self.mode = 0  # 0 AP, 1 BT, 2 both
         self.last_state = {}
         self.last_mtime = 0.0
+        self.led_power: Optional[LED] = None
+        self.led_sense: Optional[LED] = None
+        self.power_on = False
+        self.sense_on = False
 
     async def broadcast(self, payload: dict):
         dead = []
@@ -85,6 +91,7 @@ async def ws_handler(request):
     await ws.send_str(json.dumps({"type": "mode", "mode": app_state.mode}))
     if app_state.last_state:
         await ws.send_str(json.dumps({"type": "state", "state": app_state.last_state}))
+    await ws.send_str(json.dumps({"type": "leds", "power": app_state.power_on, "sense": app_state.sense_on}))
 
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
@@ -135,6 +142,19 @@ async def state_watcher():
                 with open(STATE_PATH, "r", encoding="utf-8") as f:
                     app_state.last_state = json.load(f)
                 await app_state.broadcast({"type": "state", "state": app_state.last_state})
+
+                has_devices = bool(
+                    app_state.last_state.get("wifi", {}).get("aps")
+                    or app_state.last_state.get("bt", {}).get("devices")
+                )
+                if has_devices and not app_state.sense_on:
+                    app_state.led_sense.on()
+                    app_state.sense_on = True
+                    await app_state.broadcast({"type": "leds", "power": app_state.power_on, "sense": app_state.sense_on})
+                elif not has_devices and app_state.sense_on:
+                    app_state.led_sense.off()
+                    app_state.sense_on = False
+                    await app_state.broadcast({"type": "leds", "power": app_state.power_on, "sense": app_state.sense_on})
         except FileNotFoundError:
             pass
         except Exception as e:
@@ -205,6 +225,11 @@ async def on_startup(app):
     app["watcher_task"] = asyncio.create_task(state_watcher())
     setup_gpio(asyncio.get_running_loop())
 
+    app_state.led_power = LED(LED_POWER)
+    app_state.led_sense = LED(LED_SENSE)
+    app_state.led_power.on()
+    app_state.power_on = True
+
 async def on_cleanup(app):
     try:
         app["watcher_task"].cancel()
@@ -213,6 +238,13 @@ async def on_cleanup(app):
     try:
         app["picam2"].stop_recording()
         app["picam2"].stop()
+    except Exception:
+        pass
+    try:
+        if app_state.led_sense:
+            app_state.led_sense.off()
+        if app_state.led_power:
+            app_state.led_power.off()
     except Exception:
         pass
 
