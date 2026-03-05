@@ -34,9 +34,9 @@ bash ~/maind-deploy/scripts/install_pi_deps.sh
 ```bash
 sudo cp ~/maind-deploy/systemd/shadow-reducer.service /etc/systemd/system/
 sudo cp ~/maind-deploy/systemd/shadow-backend.service /etc/systemd/system/
-# Optional: sudo cp ~/maind-deploy/systemd/shadow-kismet.service /etc/systemd/system/
+sudo cp ~/maind-deploy/systemd/shadow-kismet.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable shadow-reducer shadow-backend
+sudo systemctl enable shadow-reducer shadow-backend shadow-kismet
 ```
 
 ### 5. Create the state directory
@@ -55,7 +55,7 @@ After the shared setup above, the project is ready to run. To update:
 ssh jermarti@PI_IP
 cd ~/maind-deploy
 git pull
-sudo systemctl restart shadow-reducer shadow-backend
+sudo systemctl restart shadow-reducer shadow-backend shadow-kismet
 ```
 
 This is the simplest approach. You SSH in, pull, restart.
@@ -111,7 +111,7 @@ The hook needs to restart systemd services. Add to sudoers:
 ```bash
 sudo visudo
 # Add this line:
-jermarti ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload, /bin/systemctl restart shadow-reducer, /bin/systemctl restart shadow-backend
+jermarti ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload, /bin/systemctl restart shadow-reducer, /bin/systemctl restart shadow-backend, /bin/systemctl restart shadow-kismet
 ```
 
 ### B4. Add the Pi remote on your laptop
@@ -141,6 +141,7 @@ You can still `git push origin main` for GitHub separately -- the two remotes ar
 ssh jermarti@PI_IP
 sudo systemctl status shadow-reducer
 sudo systemctl status shadow-backend
+sudo systemctl status shadow-kismet
 journalctl -u shadow-backend -f
 ```
 
@@ -153,7 +154,7 @@ ssh jermarti@PI_IP
 cd ~/maind-deploy
 git log --oneline          # find the commit to go back to
 git checkout <commit-hash> -- .
-sudo systemctl restart shadow-reducer shadow-backend
+sudo systemctl restart shadow-reducer shadow-backend shadow-kismet
 ```
 
 ### Option B

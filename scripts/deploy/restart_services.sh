@@ -3,3 +3,4 @@ set -e
 sudo systemctl daemon-reload
 sudo systemctl restart shadow-reducer || true
 sudo systemctl restart shadow-backend || true
+sudo systemctl restart shadow-kismet || true
