@@ -37,32 +37,45 @@ def section(title: str):
     print(f"{'='*50}")
 
 
+def claim_led(pin: int) -> LED:
+    try:
+        return LED(pin)
+    except Exception as e:
+        if "busy" in str(e).lower():
+            print(f"\nERROR: GPIO {pin} is busy — the shadow-server is likely running.")
+            print("Stop it first, then retry:")
+            print("    sudo systemctl stop shadow-server")
+        else:
+            print(f"\nERROR: could not open GPIO {pin}: {e}")
+        raise SystemExit(1)
+
+
 def main():
     print(f"Shadow Creatures — LED test")
     print(f"  Power LED  → GPIO {LED_POWER_PIN}")
     print(f"  Sense LED  → GPIO {LED_SENSE_PIN}")
 
-    led_power = LED(LED_POWER_PIN)
-    led_sense = LED(LED_SENSE_PIN)
+    led_power = claim_led(LED_POWER_PIN)
+    led_sense = claim_led(LED_SENSE_PIN)
 
     try:
         # 1. Power LED alone
         section(f"1 / 3  Power LED (GPIO {LED_POWER_PIN})")
-        print("  Watch GPIO 5 — should blink 3 times.")
+        print(f"  Watch GPIO {LED_POWER_PIN} — should blink {BLINKS} times.")
         blink(led_power, f"PWR GPIO{LED_POWER_PIN}")
 
         time.sleep(0.5)
 
         # 2. Sense LED alone
         section(f"2 / 3  Sense LED (GPIO {LED_SENSE_PIN})")
-        print("  Watch GPIO 6 — should blink 3 times.")
+        print(f"  Watch GPIO {LED_SENSE_PIN} — should blink {BLINKS} times.")
         blink(led_sense, f"SNS GPIO{LED_SENSE_PIN}")
 
         time.sleep(0.5)
 
         # 3. Both together
         section("3 / 3  Both LEDs simultaneously")
-        print("  Both GPIOs should blink together 3 times.")
+        print(f"  Both GPIOs should blink together {BLINKS} times.")
         for i in range(BLINKS):
             led_power.on()
             led_sense.on()
