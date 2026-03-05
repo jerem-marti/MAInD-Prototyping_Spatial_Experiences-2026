@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-LED hardware test — GPIO 5 (power) and GPIO 6 (sense).
+LED hardware test — GPIO 5 (power) and GPIO 13 (sense).
 
 Run on the Pi:
     python3 scripts/test/test_leds.py
 
 Optionally override pins via env:
-    LED_POWER=5 LED_SENSE=6 python3 scripts/test/test_leds.py
+    LED_POWER=5 LED_SENSE=13 python3 scripts/test/test_leds.py
 """
 import os
 import time
@@ -14,7 +14,7 @@ import time
 from gpiozero import LED
 
 LED_POWER_PIN = int(os.environ.get("LED_POWER", "5"))
-LED_SENSE_PIN = int(os.environ.get("LED_SENSE", "6"))
+LED_SENSE_PIN = int(os.environ.get("LED_SENSE", "13"))
 
 BLINK_ON  = 0.3   # seconds LED stays on per blink
 BLINK_OFF = 0.2   # seconds LED stays off per blink
@@ -42,9 +42,9 @@ def claim_led(pin: int) -> LED:
         return LED(pin)
     except Exception as e:
         if "busy" in str(e).lower():
-            print(f"\nERROR: GPIO {pin} is busy — the shadow-server is likely running.")
+            print(f"\nERROR: GPIO {pin} is busy — shadow-backend is likely running.")
             print("Stop it first, then retry:")
-            print("    sudo systemctl stop shadow-server")
+            print("    sudo systemctl stop shadow-backend")
         else:
             print(f"\nERROR: could not open GPIO {pin}: {e}")
         raise SystemExit(1)
