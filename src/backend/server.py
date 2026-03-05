@@ -25,7 +25,7 @@ WEB_DIR = os.environ.get("WEB_DIR",
 HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
 BTN_SNAPSHOT = int(os.environ.get("BTN_SNAPSHOT", "17"))
 BTN_MODE = int(os.environ.get("BTN_MODE", "27"))
-LED_POWER = int(os.environ.get("LED_POWER", "5"))
+LED_POWER = int(os.environ.get("LED_POWER", "0"))
 LED_SENSE = int(os.environ.get("LED_SENSE", "6"))
 
 class StreamingOutput(io.BufferedIOBase):
