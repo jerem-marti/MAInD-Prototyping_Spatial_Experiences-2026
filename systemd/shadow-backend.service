@@ -1,0 +1,15 @@
+[Unit]
+Description=Shadow Creatures Backend (mjpeg + ws)
+After=network.target
+
+[Service]
+Type=simple
+User=jermarti
+WorkingDirectory=/home/jermarti/maind-deploy
+EnvironmentFile=/home/jermarti/maind-deploy/config/shadow.env
+ExecStart=/usr/bin/python3 /home/jermarti/maind-deploy/src/backend/server.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
