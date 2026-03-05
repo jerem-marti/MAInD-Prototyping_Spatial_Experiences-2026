@@ -89,7 +89,6 @@ hciconfig
 sudo apt install -y \
   git curl jq tmux wget gpg \
   python3-picamera2 python3-aiohttp python3-requests python3-gpiozero \
-  python3-opencv python3-numpy python3-pil \
   python3-smbus python3-jinja2 \
   i2c-tools
 
