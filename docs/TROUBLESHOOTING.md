@@ -83,10 +83,11 @@
 
 ### Verify GPIO pull-up
 
+`raspi-gpio` was removed in Trixie. Use `pinctrl` instead (pre-installed on Raspberry Pi OS Trixie):
+
 ```bash
-sudo apt install -y raspi-gpio
-sudo raspi-gpio set 17 ip pu
-raspi-gpio get 17
+pinctrl set 17 ip pu
+pinctrl get 17
 ```
 
 Expected: ~3.3V idle, ~0V when pressed.
