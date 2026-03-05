@@ -1,0 +1,43 @@
+# secrets
+config/shadow.env
+
+# runtime state
+state/
+state/*.png
+state/*.jpg
+state/*.jpeg
+
+# kismet captures / logs
+*.kismet
+*.pcap
+*.pcapng
+*.log
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+Icon?
+
+# IDE
+.idea/
+.vscode/
+*.sublime-workspace
+
+# Node (if any)
+node_modules/
+npm-debug.log*
+
+# Build artifacts
+/dist/
+/build/
+
+# Claude
+claude-*.log
+tmpclaude-*

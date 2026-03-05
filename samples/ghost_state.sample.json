@@ -1,0 +1,39 @@
+{
+  "ts": 1709568600.123,
+  "window_s": 60,
+  "views": {
+    "wifi": "phydot11_accesspoints",
+    "bt": "phybluetooth"
+  },
+  "wifi": {
+    "aps": [
+      {
+        "id": "a3f1c8e02b9d4a7e6f1023456789abcdef0123456789abcdef0123456789abcd",
+        "name": "SUPSI-Guest",
+        "last_seen": 1709568590,
+        "channel": 6,
+        "signal_dbm": -35,
+        "strength": 0.92
+      },
+      {
+        "id": "e5f6b7a89012cdef3456789abcdef0123456789abcdef0123456789abcdef01",
+        "name": "(unknown)",
+        "last_seen": 1709568585,
+        "channel": 11,
+        "signal_dbm": -55,
+        "strength": 0.58
+      }
+    ]
+  },
+  "bt": {
+    "devices": [
+      {
+        "id": "c9d0e1f23456789abcdef0123456789abcdef0123456789abcdef0123456789",
+        "name": "(bt)",
+        "last_seen": 1709568580,
+        "signal_dbm": -70,
+        "strength": 0.33
+      }
+    ]
+  }
+}
