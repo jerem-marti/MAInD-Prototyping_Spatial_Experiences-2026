@@ -1,5 +1,7 @@
 # secrets
 config/shadow.env
+samples/dumps
+samples/dumps/*
 
 # runtime state
 state/
