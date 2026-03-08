@@ -311,28 +311,38 @@ const AtomFluidEngine = {
         this.gl = gl;
         console.log('[AtomFluidEngine] WebGL' + (this._isWebGL2 ? '2' : '1') + ' context acquired, canvas:', containerW, 'x', containerH);
 
-        const halfFloat = gl.getExtension("OES_texture_half_float");
-        let supportLinear = gl.getExtension("OES_texture_half_float_linear");
-        if (this._isWebGL2) {
-            gl.getExtension("EXT_color_buffer_float");
-            supportLinear = gl.getExtension("OES_texture_float_linear");
-        }
-        this._supportLinear = !!supportLinear;
-
         const isWGL2 = this._isWebGL2;
-        this._ext = {
-            internalFormat: isWGL2 ? gl.RGBA16F : gl.RGBA,
-            internalFormatRG: isWGL2 ? gl.RG16F : gl.RGBA,
-            formatRG: isWGL2 ? gl.RG : gl.RGBA,
-            texType: isWGL2 ? gl.HALF_FLOAT : (halfFloat ? halfFloat.HALF_FLOAT_OES : gl.FLOAT)
-        };
 
-        // Probe whether the selected format can actually be used as an FBO
-        // render target. On many embedded GPUs (e.g. Raspberry Pi VideoCore),
-        // OES_texture_half_float exists but EXT_color_buffer_half_float does not,
-        // so half-float FBOs are silently incomplete. Fall back to UNSIGNED_BYTE
-        // (always renderable) when the probe fails.
-        this._probeFBOSupport();
+        if (isWGL2) {
+            // WebGL2: prefer 16-bit float. Try to enable float colour buffers and
+            // linear filtering; fall back via _probeFBOSupport() when unavailable.
+            gl.getExtension("EXT_color_buffer_float");
+            const linearExt = gl.getExtension("OES_texture_float_linear");
+            this._supportLinear = !!linearExt;
+            this._ext = {
+                internalFormat:   gl.RGBA16F,
+                internalFormatRG: gl.RG16F,
+                formatRG:         gl.RG,
+                texType:          gl.HALF_FLOAT
+            };
+            // On WebGL2 contexts that lack EXT_color_buffer_float the probe will
+            // downgrade to UNSIGNED_BYTE.
+            this._probeFBOSupport();
+        } else {
+            // WebGL1 (e.g. Raspberry Pi VideoCore): UNSIGNED_BYTE RGBA is the
+            // ONLY texture format the spec guarantees is renderable as an FBO.
+            // Half-float and float variants may advertise OES extensions and even
+            // return FRAMEBUFFER_COMPLETE, but writes are silently discarded on
+            // many embedded GPUs — making all blobs invisible.  Skip extensions
+            // entirely and go straight to the safe fallback.
+            this._supportLinear = true;   // linear filtering is free for UNSIGNED_BYTE
+            this._ext = {
+                internalFormat:   gl.RGBA,
+                internalFormatRG: gl.RGBA,
+                formatRG:         gl.RGBA,
+                texType:          gl.UNSIGNED_BYTE
+            };
+        }
 
         gl.clearColor(0.0, 0.0, 0.0, 0.0);
 
