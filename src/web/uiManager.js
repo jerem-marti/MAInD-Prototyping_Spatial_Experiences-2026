@@ -298,6 +298,15 @@ const UIManager = {
             });
         }
 
+        // Sidebar close button (X)
+        const sidebarClose = document.getElementById('btn-sidebar-close');
+        if (sidebarClose) {
+            sidebarClose.addEventListener('click', () => {
+                UI.sidebar.classList.remove('sidebar-open');
+                UI.sidebarToggle.classList.remove('active');
+            });
+        }
+
         // Capture button — uses backend snapshot flow
         if (UI.btnCapture) {
             UI.btnCapture.addEventListener('click', () => {
@@ -458,14 +467,24 @@ const UIManager = {
             manualToggle.addEventListener('change', (e) => { State.useManualParams = e.target.checked; });
         }
 
-        // Max signals input
-        const maxSignalsInput = document.getElementById('max-signals-input');
-        if (maxSignalsInput) {
-            maxSignalsInput.value = State.maxSignals;
-            maxSignalsInput.addEventListener('change', (e) => {
-                const val = parseInt(e.target.value);
-                if (!isNaN(val) && val >= 1 && val <= 50) {
-                    State.maxSignals = val;
+        // Max signals +/- buttons
+        const maxSignalsDisplay = document.getElementById('max-signals-display');
+        const btnMaxInc = document.getElementById('btn-max-signals-inc');
+        const btnMaxDec = document.getElementById('btn-max-signals-dec');
+        if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
+        if (btnMaxInc) {
+            btnMaxInc.addEventListener('click', () => {
+                if (State.maxSignals < 50) {
+                    State.maxSignals++;
+                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
+                }
+            });
+        }
+        if (btnMaxDec) {
+            btnMaxDec.addEventListener('click', () => {
+                if (State.maxSignals > 1) {
+                    State.maxSignals--;
+                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
                 }
             });
         }
@@ -477,6 +496,19 @@ const UIManager = {
                 if (typeof OrientationManager !== 'undefined') {
                     OrientationManager.resetNorth();
                 }
+            });
+        }
+
+        // Orientation input toggle (mouse <-> gyro)
+        const btnOrientToggle = document.getElementById('btn-orientation-toggle');
+        if (btnOrientToggle) {
+            btnOrientToggle.addEventListener('click', () => {
+                if (typeof OrientationManager === 'undefined') return;
+                const current = OrientationManager._preferred;
+                const next = current === 'mouse' ? 'gyro' : 'mouse';
+                OrientationManager.setPreferred(next);
+                btnOrientToggle.textContent = `INPUT: ${next.toUpperCase()}`;
+                btnOrientToggle.classList.toggle('active', next === 'gyro');
             });
         }
 

@@ -23,7 +23,14 @@ const ImageDeformPass = {
     init() {
         this.canvas = document.createElement('canvas');
         this.canvas.id = 'deform-pass-canvas';
-        this.canvas.style.display = 'none';
+        // Use offscreen positioning instead of display:none to ensure
+        // drawingBufferWidth/Height are non-zero in all browsers
+        this.canvas.style.position = 'fixed';
+        this.canvas.style.width = '1px';
+        this.canvas.style.height = '1px';
+        this.canvas.style.opacity = '0';
+        this.canvas.style.pointerEvents = 'none';
+        this.canvas.style.zIndex = '-1';
         document.body.appendChild(this.canvas);
 
         const params = {

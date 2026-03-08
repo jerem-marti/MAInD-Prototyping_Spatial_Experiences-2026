@@ -131,6 +131,9 @@ body {
 }
 
 #sidebar-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
     padding: var(--space-lg) var(--space-lg) var(--space-md);
     border-bottom: 1px solid var(--border-subtle);
 }
@@ -149,6 +152,13 @@ body {
     letter-spacing: 2px;
     color: var(--text-tertiary);
     margin-top: 2px;
+}
+
+#btn-sidebar-close {
+    flex-shrink: 0;
+    font-size: 18px;
+    width: 26px;
+    height: 26px;
 }
 
 /* -- Panels ----------------------------------------- */
@@ -638,6 +648,27 @@ body {
 /* -- Utility ---------------------------------------- */
 .hidden {
     display: none !important;
+}
+
+/* -- Max Signals Controls --------------------------- */
+.max-signals-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.max-signals-controls .btn-icon {
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
+}
+
+.max-signals-controls span {
+    min-width: 24px;
+    text-align: center;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
 }
 
 /* -- Sidebar Toggle Button (bottom-left) ------------ */

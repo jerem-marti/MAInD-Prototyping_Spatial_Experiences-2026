@@ -3,6 +3,7 @@ import asyncio
 import base64
 import io
 import json
+import math
 import os
 import sys
 import time
@@ -28,6 +29,12 @@ BTN_MODE = int(os.environ.get("BTN_MODE", "27"))
 LED_POWER = int(os.environ.get("LED_POWER", "0"))
 LED_SENSE = int(os.environ.get("LED_SENSE", "6"))
 
+# --- IMU (LSM6DS) configuration ---
+IMU_BUS = int(os.environ.get("IMU_BUS", "1"))
+IMU_ADDR = int(os.environ.get("IMU_ADDR", "0x6A"), 0)
+IMU_RATE_HZ = int(os.environ.get("IMU_RATE_HZ", "50"))  # broadcast rate
+
+
 class StreamingOutput(io.BufferedIOBase):
     """
     Exactly the pattern used by Picamera2's mjpeg_server_2.py:
@@ -47,6 +54,7 @@ class StreamingOutput(io.BufferedIOBase):
         with self.condition:
             self.condition.wait()
             return self.frame
+
 
 class AppState:
     def __init__(self):
@@ -70,6 +78,119 @@ class AppState:
             self.ws_clients.discard(ws)
 
 app_state = AppState()
+
+
+# ─── IMU helpers ──────────────────────────────────────────────────────────────
+
+def _twos_complement_16(lo, hi):
+    v = (hi << 8) | lo
+    return v - 65536 if v >= 32768 else v
+
+
+def _imu_init(bus):
+    """Configure LSM6DS: accel 104 Hz +/-2g, gyro 104 Hz 245 dps, auto-increment."""
+    bus.write_byte_data(IMU_ADDR, 0x12, 0x04)   # CTRL3_C: auto-increment
+    bus.write_byte_data(IMU_ADDR, 0x10, 0x40)   # CTRL1_XL: 104 Hz, 2g
+    bus.write_byte_data(IMU_ADDR, 0x11, 0x40)   # CTRL2_G: 104 Hz, 245 dps
+    time.sleep(0.05)
+
+
+def _imu_read(bus):
+    """Read accel (g) and gyro (dps) from LSM6DS. Returns (ax, ay, az, gx, gy, gz)."""
+    ACC_SCALE = 0.000061   # 2g: 0.061 mg/LSB
+    GYRO_SCALE = 0.00875   # 245 dps: 8.75 mdps/LSB
+
+    raw_g = bus.read_i2c_block_data(IMU_ADDR, 0x22, 6)
+    raw_a = bus.read_i2c_block_data(IMU_ADDR, 0x28, 6)
+
+    gx = _twos_complement_16(raw_g[0], raw_g[1]) * GYRO_SCALE
+    gy = _twos_complement_16(raw_g[2], raw_g[3]) * GYRO_SCALE
+    gz = _twos_complement_16(raw_g[4], raw_g[5]) * GYRO_SCALE
+
+    ax = _twos_complement_16(raw_a[0], raw_a[1]) * ACC_SCALE
+    ay = _twos_complement_16(raw_a[2], raw_a[3]) * ACC_SCALE
+    az = _twos_complement_16(raw_a[4], raw_a[5]) * ACC_SCALE
+
+    return ax, ay, az, gx, gy, gz
+
+
+def _blocking_imu_loop(bus):
+    """
+    Blocking loop that reads the IMU at ~100 Hz and maintains integrated
+    yaw / pitch / roll using a complementary filter.
+    Returns a generator yielding (yaw, pitch, roll) dicts.
+    """
+    _imu_init(bus)
+
+    yaw = 0.0
+    pitch = 0.0
+    roll = 0.0
+    last_t = time.monotonic()
+    alpha = 0.98  # complementary filter weight (gyro trust)
+
+    while True:
+        ax, ay, az, gx, gy, gz = _imu_read(bus)
+        now = time.monotonic()
+        dt = now - last_t
+        last_t = now
+
+        # Accelerometer-derived tilt angles (degrees)
+        acc_pitch = math.degrees(math.atan2(ax, math.sqrt(ay * ay + az * az)))
+        acc_roll = math.degrees(math.atan2(ay, math.sqrt(ax * ax + az * az)))
+
+        # Gyro integration
+        pitch = alpha * (pitch + gx * dt) + (1 - alpha) * acc_pitch
+        roll = alpha * (roll + gy * dt) + (1 - alpha) * acc_roll
+        yaw += gz * dt  # no accelerometer reference for yaw — gyro only
+
+        # Wrap yaw to 0-360
+        yaw = yaw % 360
+
+        yield {"yaw": round(yaw, 2), "pitch": round(pitch, 2), "roll": round(roll, 2)}
+
+        time.sleep(1.0 / 100)  # ~100 Hz internal rate
+
+
+async def imu_broadcaster():
+    """
+    Async coroutine: reads IMU in a worker thread, broadcasts orientation
+    to all WebSocket clients at IMU_RATE_HZ.
+    """
+    try:
+        from smbus2 import SMBus
+    except ImportError:
+        print("[IMU] smbus2 not available — IMU disabled", file=sys.stderr)
+        return
+
+    bus = None
+    try:
+        bus = SMBus(IMU_BUS)
+        who = bus.read_byte_data(IMU_ADDR, 0x0F)
+        print(f"[IMU] LSM6DS detected: WHO_AM_I=0x{who:02X} on bus {IMU_BUS}, addr 0x{IMU_ADDR:02X}")
+    except Exception as e:
+        print(f"[IMU] Sensor not found ({e}) — IMU disabled", file=sys.stderr)
+        if bus:
+            bus.close()
+        return
+
+    gen = _blocking_imu_loop(bus)
+    interval = 1.0 / IMU_RATE_HZ
+
+    try:
+        while True:
+            orientation = await asyncio.to_thread(next, gen)
+            payload = {"type": "imu", **orientation}
+            await app_state.broadcast(payload)
+            await asyncio.sleep(interval)
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        print(f"[IMU] Error: {e}", file=sys.stderr)
+    finally:
+        bus.close()
+
+
+# ─── HTTP handlers ────────────────────────────────────────────────────────────
 
 async def index(_request):
     return web.FileResponse(os.path.join(WEB_DIR, "index.html"))
@@ -223,6 +344,7 @@ async def on_startup(app):
     picam2.start_recording(MJPEGEncoder(), FileOutput(output))
 
     app["watcher_task"] = asyncio.create_task(state_watcher())
+    app["imu_task"] = asyncio.create_task(imu_broadcaster())
     setup_gpio(asyncio.get_running_loop())
 
     app_state.led_power = LED(LED_POWER)
@@ -233,6 +355,10 @@ async def on_startup(app):
 async def on_cleanup(app):
     try:
         app["watcher_task"].cancel()
+    except Exception:
+        pass
+    try:
+        app["imu_task"].cancel()
     except Exception:
         pass
     try:
@@ -263,4 +389,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

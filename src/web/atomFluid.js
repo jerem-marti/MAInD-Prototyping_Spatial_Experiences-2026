@@ -276,7 +276,16 @@ const AtomFluidEngine = {
     init(containerW, containerH) {
         this.canvas = document.createElement('canvas');
         this.canvas.id = 'atom-fluid-canvas';
-        this.canvas.style.display = 'none';
+        // Use offscreen positioning instead of display:none to ensure
+        // drawingBufferWidth/Height are non-zero in all browsers
+        this.canvas.style.position = 'fixed';
+        this.canvas.style.left = '0';
+        this.canvas.style.top = '0';
+        this.canvas.style.width = '1px';
+        this.canvas.style.height = '1px';
+        this.canvas.style.opacity = '0';
+        this.canvas.style.pointerEvents = 'none';
+        this.canvas.style.zIndex = '-1';
         document.body.appendChild(this.canvas);
 
         this.canvas.width = containerW;
@@ -300,6 +309,7 @@ const AtomFluidEngine = {
         if (!gl) { this._noGL = true; console.error("AtomFluidEngine: no WebGL"); return; }
 
         this.gl = gl;
+        console.log('[AtomFluidEngine] WebGL' + (this._isWebGL2 ? '2' : '1') + ' context acquired, canvas:', containerW, 'x', containerH);
 
         const halfFloat = gl.getExtension("OES_texture_half_float");
         let supportLinear = gl.getExtension("OES_texture_half_float_linear");

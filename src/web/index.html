@@ -14,8 +14,11 @@
         <!-- SIDEBAR (hidden by default, overlays on toggle) -->
         <aside id="sidebar">
             <header id="sidebar-header">
-                <h1>GHOST SIGNAL</h1>
-                <span class="subtitle">SHADOW CREATURES vAtom</span>
+                <div>
+                    <h1>GHOST SIGNAL</h1>
+                    <span class="subtitle">SHADOW CREATURES vAtom</span>
+                </div>
+                <button id="btn-sidebar-close" class="btn-icon" title="Close panel">&times;</button>
             </header>
 
             <!-- Connection Status / Mode -->
@@ -50,8 +53,11 @@
                     </div>
                     <div class="param-toggle-row" style="margin-top: 6px;">
                         <span class="param-label">max signals</span>
-                        <input type="number" id="max-signals-input" value="15" min="1" max="50"
-                            style="width: 50px; background: #F0EFED; color: #1A1A18; border: 1px solid #D0CECC; padding: 2px 4px; font-size: 11px;">
+                        <div class="max-signals-controls">
+                            <button class="btn-icon" id="btn-max-signals-dec" title="Decrease">&minus;</button>
+                            <span id="max-signals-display">15</span>
+                            <button class="btn-icon" id="btn-max-signals-inc" title="Increase">+</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -65,8 +71,9 @@
                     <div id="view-status" style="font-size: 10px; color: #FF6103; padding: 4px 0; opacity: 0.8;">
                         YAW: 0 | PITCH: 0 | SOURCE: mouse
                     </div>
+                    <button class="btn btn-action" id="btn-orientation-toggle">INPUT: MOUSE</button>
                     <button class="btn btn-action" id="btn-reset-north">RESET NORTH</button>
-                    <div style="font-size: 9px; color: #605E5C; padding: 4px 0;">Drag canvas to rotate view</div>
+                    <div style="font-size: 9px; color: #605E5C; padding: 4px 0;">Toggle between mouse drag and gyroscope/IMU</div>
                 </div>
             </section>
 

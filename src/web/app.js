@@ -94,6 +94,11 @@ function connectWebSocket() {
             if (msg.type === 'leds') {
                 // LED status — could be shown in UI if needed
             }
+
+            if (msg.type === 'imu') {
+                // Forward IMU orientation data to OrientationManager
+                OrientationManager.onIMUData(msg);
+            }
         } catch (e) {
             console.error('[App] WebSocket message error:', e);
         }

@@ -37,6 +37,16 @@ const Renderer = {
         DebugMode.trackFrame(timestamp);
         Telemetry.update();
 
+        // Update rotated camera frame each tick
+        if (Camera.active && Camera._updateRotated) {
+            Camera._updateRotated();
+            // Re-upload current frame to ImageDeformPass so the deformation
+            // pass always uses the latest camera image (prevents freeze)
+            if (State.image && ImageDeformPass._ready) {
+                ImageDeformPass.uploadImage(State.image);
+            }
+        }
+
         // 360 Globe: project devices through view frustum
         this._updateDeviceSignals();
 
@@ -194,10 +204,11 @@ const Renderer = {
             ctx.save();
 
             if (layer.type === 'signal') {
-                if (!State.image) { ctx.restore(); return; }
-                ctx.beginPath();
-                ctx.rect(State.imageRect.x, State.imageRect.y, State.imageRect.w, State.imageRect.h);
-                ctx.clip();
+                if (State.image && State.imageRect.w > 0) {
+                    ctx.beginPath();
+                    ctx.rect(State.imageRect.x, State.imageRect.y, State.imageRect.w, State.imageRect.h);
+                    ctx.clip();
+                }
             }
 
             ctx.globalAlpha = layer.opacity || 1.0;
