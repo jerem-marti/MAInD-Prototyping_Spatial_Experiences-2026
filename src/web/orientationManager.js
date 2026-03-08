@@ -133,6 +133,7 @@ const OrientationManager = {
         }, { passive: false });
 
         canvas.addEventListener('touchend', () => { this._dragActive = false; });
+        canvas.addEventListener('touchcancel', () => { this._dragActive = false; });
     },
 
     /**

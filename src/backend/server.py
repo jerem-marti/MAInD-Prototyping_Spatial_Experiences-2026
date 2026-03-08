@@ -92,7 +92,7 @@ def _imu_init(bus):
     bus.write_byte_data(IMU_ADDR, 0x12, 0x04)   # CTRL3_C: auto-increment
     bus.write_byte_data(IMU_ADDR, 0x10, 0x40)   # CTRL1_XL: 104 Hz, 2g
     bus.write_byte_data(IMU_ADDR, 0x11, 0x40)   # CTRL2_G: 104 Hz, 245 dps
-    time.sleep(0.05)
+    time.sleep(0.1)   # 100 ms settle (matches proven test script value)
 
 
 def _imu_read(bus):
@@ -138,17 +138,16 @@ def _blocking_imu_loop(bus):
         acc_pitch = math.degrees(math.atan2(ax, math.sqrt(ay * ay + az * az)))
         acc_roll = math.degrees(math.atan2(ay, math.sqrt(ax * ax + az * az)))
 
-        # Gyro integration
-        pitch = alpha * (pitch + gx * dt) + (1 - alpha) * acc_pitch
-        roll = alpha * (roll + gy * dt) + (1 - alpha) * acc_roll
+        # Gyro integration — gy integrates pitch (Y-axis rotation), gx integrates roll (X-axis)
+        pitch = alpha * (pitch + gy * dt) + (1 - alpha) * acc_pitch
+        roll = alpha * (roll + gx * dt) + (1 - alpha) * acc_roll
         yaw += gz * dt  # no accelerometer reference for yaw — gyro only
 
         # Wrap yaw to 0-360
         yaw = yaw % 360
 
         yield {"yaw": round(yaw, 2), "pitch": round(pitch, 2), "roll": round(roll, 2)}
-
-        time.sleep(1.0 / 100)  # ~100 Hz internal rate
+        # No sleep here — broadcast rate is governed by asyncio.sleep() in imu_broadcaster
 
 
 async def imu_broadcaster():
@@ -178,15 +177,21 @@ async def imu_broadcaster():
 
     try:
         while True:
-            orientation = await asyncio.to_thread(next, gen)
+            try:
+                orientation = await asyncio.to_thread(next, gen)
+            except StopIteration:
+                break
+            except Exception as e:
+                print(f"[IMU] Read error (will retry): {e}", file=sys.stderr)
+                await asyncio.sleep(interval)
+                continue
             payload = {"type": "imu", **orientation}
             await app_state.broadcast(payload)
             await asyncio.sleep(interval)
     except asyncio.CancelledError:
         pass
-    except Exception as e:
-        print(f"[IMU] Error: {e}", file=sys.stderr)
     finally:
+        gen.close()   # signal generator to stop before closing the bus
         bus.close()
 
 
