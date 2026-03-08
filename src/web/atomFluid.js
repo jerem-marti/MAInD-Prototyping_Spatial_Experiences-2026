@@ -317,7 +317,7 @@ const AtomFluidEngine = {
             gl.getExtension("EXT_color_buffer_float");
             supportLinear = gl.getExtension("OES_texture_float_linear");
         }
-        this._supportLinear = supportLinear;
+        this._supportLinear = !!supportLinear;
 
         const isWGL2 = this._isWebGL2;
         this._ext = {
@@ -326,6 +326,13 @@ const AtomFluidEngine = {
             formatRG: isWGL2 ? gl.RG : gl.RGBA,
             texType: isWGL2 ? gl.HALF_FLOAT : (halfFloat ? halfFloat.HALF_FLOAT_OES : gl.FLOAT)
         };
+
+        // Probe whether the selected format can actually be used as an FBO
+        // render target. On many embedded GPUs (e.g. Raspberry Pi VideoCore),
+        // OES_texture_half_float exists but EXT_color_buffer_half_float does not,
+        // so half-float FBOs are silently incomplete. Fall back to UNSIGNED_BYTE
+        // (always renderable) when the probe fails.
+        this._probeFBOSupport();
 
         gl.clearColor(0.0, 0.0, 0.0, 0.0);
 
@@ -351,7 +358,57 @@ const AtomFluidEngine = {
         this._initFramebuffers();
     },
 
-    /* ── Shaders ───────────────────────────────────────── */
+    /**
+     * Test whether the current `_ext` format can actually be used as an FBO
+     * render target. If not (e.g. Pi VideoCore: OES_texture_half_float exists
+     * but EXT_color_buffer_half_float does not), silently downgrade to
+     * UNSIGNED_BYTE RGBA which is always renderable in any WebGL implementation.
+     * @private
+     */
+    _probeFBOSupport() {
+        const gl = this.gl;
+        const e = this._ext;
+
+        // Create a minimal 1×1 test FBO with the candidate format
+        const testTex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, testTex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texImage2D(gl.TEXTURE_2D, 0, e.internalFormat, 1, 1, 0, gl.RGBA, e.texType, null);
+
+        const testFBO = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, testFBO);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, testTex, 0);
+
+        const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+
+        // Clean up test objects
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.bindTexture(gl.TEXTURE_2D, null);
+        gl.deleteFramebuffer(testFBO);
+        gl.deleteTexture(testTex);
+
+        if (status !== gl.FRAMEBUFFER_COMPLETE) {
+            console.warn(
+                '[AtomFluidEngine] Float/half-float FBO not supported on this GPU ' +
+                '(status 0x' + status.toString(16) + '). ' +
+                'Falling back to UNSIGNED_BYTE — blobs will be visible but lower precision.'
+            );
+            // UNSIGNED_BYTE RGBA is the only format guaranteed renderable in all WebGL
+            this._ext = {
+                internalFormat:   gl.RGBA,
+                internalFormatRG: gl.RGBA,
+                formatRG:         gl.RGBA,
+                texType:          gl.UNSIGNED_BYTE
+            };
+            // UNSIGNED_BYTE always supports linear filtering — no extension needed
+            this._supportLinear = true;
+        } else {
+            console.log('[AtomFluidEngine] FBO format probe passed (texType=' + e.texType + ').');
+        }
+    },
 
     /**
      * Compile a single GLSL shader of the given type.
