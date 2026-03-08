@@ -77,6 +77,8 @@ const DebugMode = {
      */
     toggleBlobDebug() {
         this.debugBlobMode = !this.debugBlobMode;
+        const cb = document.getElementById('blob-debug-toggle');
+        if (cb) cb.checked = this.debugBlobMode;
         console.log('[Debug] Blob debug mode:', this.debugBlobMode ? 'ON' : 'OFF');
     },
 

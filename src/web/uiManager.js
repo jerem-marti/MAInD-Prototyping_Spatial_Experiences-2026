@@ -444,6 +444,13 @@ const UIManager = {
             });
         }
 
+        const blobDebugToggle = document.getElementById('blob-debug-toggle');
+        if (blobDebugToggle) {
+            blobDebugToggle.addEventListener('change', (e) => {
+                DebugMode.debugBlobMode = e.target.checked;
+            });
+        }
+
         const debugExport = document.getElementById('debug-export-toggle');
         if (debugExport) {
             debugExport.addEventListener('change', (e) => {
