@@ -37,14 +37,10 @@ const Renderer = {
         DebugMode.trackFrame(timestamp);
         Telemetry.update();
 
-        // Update rotated camera frame each tick
-        if (Camera.active && Camera._updateRotated) {
-            Camera._updateRotated();
-            // Re-upload current frame to ImageDeformPass so the deformation
-            // pass always uses the latest camera image (prevents freeze)
-            if (State.image && ImageDeformPass._ready) {
-                ImageDeformPass.uploadImage(State.image);
-            }
+        // Re-upload current camera frame to ImageDeformPass every tick so
+        // the deformation pass always uses the latest image (prevents freeze)
+        if (Camera.active && State.image && ImageDeformPass._ready) {
+            ImageDeformPass.uploadImage(State.image);
         }
 
         // 360 Globe: project devices through view frustum
