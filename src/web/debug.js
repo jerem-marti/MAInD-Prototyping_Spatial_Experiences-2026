@@ -143,10 +143,28 @@ const DebugMode = {
             lines.push(`total splats: ${AtomFluidEngine.getTotalSplats()}`);
         }
 
+        // WebGL fluid diagnostics — always shown when debug is on
+        lines.push('');
+        lines.push('── WEBGL FLUID ──');
+        if (AtomFluidEngine._noGL) {
+            lines.push('STATUS: NO WEBGL CONTEXT');
+        } else if (!AtomFluidEngine.diag) {
+            lines.push('STATUS: not yet initialised');
+        } else {
+            const d = AtomFluidEngine.diag;
+            lines.push(`ctx: ${d.wglVer}  fmt: ${d.texType}`);
+            lines.push(`drawBuf: ${d.bufSize}  texFBO: ${d.texSize}`);
+            lines.push(`linear: ${d.linear}  fboWrite: ${d.fboWrite}`);
+            lines.push(`density@center: ${d.densitySample || '(not sampled yet)'}`);
+            lines.push(`totalSplats: ${AtomFluidEngine.getTotalSplats()}`);
+            const canvas = AtomFluidEngine.canvas;
+            lines.push(`fluidCanvas: ${canvas ? canvas.width + 'x' + canvas.height : 'null'}`);
+        }
+
         // Draw HUD background
         const padding = 10;
         const lineH = 14;
-        const hudW = 280;
+        const hudW = 340;
         const hudH = lines.length * lineH + padding * 2;
 
         ctx.save();

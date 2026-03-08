@@ -198,6 +198,9 @@ const AtomFluidEngine = {
      */
     _ext: null,
 
+    /** @type {Object|null} Populated by _runDiagnostics() after init */
+    diag: null,
+
     /**
      * Map of compiled GL program wrappers keyed by pass name.
      * @type {?Object<string, {program:WebGLProgram, uniforms:Object<string,WebGLUniformLocation>, bind:Function}>}
@@ -350,6 +353,7 @@ const AtomFluidEngine = {
         this._createPrograms();
         this._initBlit();
         this._initFramebuffers();
+        this._runDiagnostics();
     },
 
     /**
@@ -366,6 +370,92 @@ const AtomFluidEngine = {
         this.canvas.width = w;
         this.canvas.height = h;
         this._initFramebuffers();
+    },
+
+    /**
+     * Run one-shot diagnostics after init: record WebGL version, texture format,
+     * drawing-buffer size, and perform an actual write + read-back test on the
+     * density FBO so problems are visible in the debug HUD even without DevTools.
+     * Results stored in `this.diag` and printed to console.
+     * @private
+     */
+    _runDiagnostics() {
+        const gl = this.gl;
+        const e = this._ext;
+
+        // Friendly name for the active texel type
+        const UB = gl.UNSIGNED_BYTE, FL = gl.FLOAT;
+        const HF_WGL2 = gl.HALF_FLOAT;          // 0x140B in WebGL2
+        const HF_OES  = 0x8D61;                 // HALF_FLOAT_OES in WebGL1
+        const texTypeNames = {};
+        texTypeNames[UB]    = 'UNSIGNED_BYTE';
+        texTypeNames[FL]    = 'FLOAT';
+        texTypeNames[HF_WGL2] = 'HALF_FLOAT(wgl2)';
+        texTypeNames[HF_OES]  = 'HALF_FLOAT_OES';
+        const texTypeName = texTypeNames[e.texType] || ('0x' + e.texType.toString(16));
+
+        // ── FBO write + read-back test ────────────────────────────────────────
+        // Bind density FBO, clear to a known non-zero colour, read one pixel.
+        // For UNSIGNED_BYTE FBOs the read-back with gl.RGBA/UNSIGNED_BYTE is
+        // spec-guaranteed.  For float FBOs we use the implementation-provided
+        // preferred format (IMPLEMENTATION_COLOR_READ_FORMAT/TYPE).
+        let fboWrite = 'skipped';
+        let densityR = 0;
+        try {
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this._density.first[1]);
+            gl.viewport(0, 0, this._texW || 1, this._texH || 1);
+
+            // Query the implementation's preferred read-back format for this FBO
+            const readFmt  = this._isWebGL2
+                ? gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_FORMAT)
+                : gl.RGBA;
+            const readType = this._isWebGL2
+                ? gl.getParameter(gl.IMPLEMENTATION_COLOR_READ_TYPE)
+                : gl.UNSIGNED_BYTE;
+
+            // Write a test value (r≈0.5) into the FBO
+            gl.clearColor(0.502, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // Read it back
+            const isFloat = (readType === gl.FLOAT ||
+                             readType === 0x8D61 /* HALF_FLOAT_OES */ ||
+                             readType === gl.HALF_FLOAT);
+            const buf = isFloat ? new Float32Array(4) : new Uint8Array(4);
+            gl.readPixels(0, 0, 1, 1, readFmt, readType, buf);
+            const err = gl.getError();
+
+            const threshold = isFloat ? 0.1 : 50;
+            densityR = buf[0];
+            if (err !== gl.NO_ERROR) {
+                fboWrite = `READBACK_ERR(0x${err.toString(16)})`;
+            } else if (buf[0] >= threshold) {
+                fboWrite = `PASS(r=${isFloat ? buf[0].toFixed(2) : buf[0]})`;
+            } else {
+                fboWrite = `FAIL(r=${isFloat ? buf[0].toFixed(2) : buf[0]},` +
+                           `fmt=0x${readFmt.toString(16)},` +
+                           `type=0x${readType.toString(16)})`;
+            }
+
+            // Clear the test value so the simulation starts from zero
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        } catch (ex) {
+            fboWrite = 'EXCEPTION:' + ex.message;
+        }
+
+        this.diag = {
+            wglVer:    this._isWebGL2 ? 'WebGL2' : 'WebGL1',
+            texType:   texTypeName,
+            bufSize:   `${gl.drawingBufferWidth}x${gl.drawingBufferHeight}`,
+            texSize:   `${this._texW}x${this._texH}`,
+            fboWrite,
+            linear:    this._supportLinear,
+            initDensityR: densityR,
+        };
+
+        console.log('[AtomFluid] Diagnostics:', JSON.stringify(this.diag));
     },
 
     /**
@@ -1069,6 +1159,26 @@ const AtomFluidEngine = {
         dp.bind();
         gl.uniform1i(dp.uniforms.uTexture, this._density.first[2]);
         this._blit(null);
+
+        // ── Periodic density sample for debug HUD (every 60 frames) ──────────
+        // Reads one pixel from the center of the density FBO. Non-zero means
+        // splats are actually accumulating; zero means writes are broken.
+        this._renderCount = (this._renderCount || 0) + 1;
+        if (this._renderCount % 60 === 1 && this.diag) {
+            try {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this._density.first[1]);
+                const cx = Math.max(1, Math.floor((this._texW || 2) / 2));
+                const cy = Math.max(1, Math.floor((this._texH || 2) / 2));
+                const pix = new Uint8Array(4);
+                // RGBA/UNSIGNED_BYTE readback always valid for UNSIGNED_BYTE FBOs;
+                // for float FBOs it may return 0 — but that itself is diagnostic.
+                gl.readPixels(cx, cy, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pix);
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+                if (gl.getError() === gl.NO_ERROR) {
+                    this.diag.densitySample = `rgba(${pix[0]},${pix[1]},${pix[2]},${pix[3]})`;
+                }
+            } catch (_) { /* don't interrupt rendering */ }
+        }
     },
 
     /**
