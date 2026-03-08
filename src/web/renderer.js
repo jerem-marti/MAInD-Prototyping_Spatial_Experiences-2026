@@ -53,6 +53,11 @@ const Renderer = {
             });
         }
 
+        // Override params with hyper-visible debug values when blob debug is active
+        if (DebugMode.debugBlobMode) {
+            DebugMode.applyBlobDebugParams(State.signals);
+        }
+
         // Update global fluid engine with all anchors
         if (State.signals.length > 0) {
             AtomFluidEngine.update(dt, State.signals);

@@ -19,6 +19,8 @@ const DebugMode = {
     enabled: false,
     /** @type {boolean} Whether to include the HUD in exported PNG captures */
     includeInExport: false,
+    /** @type {boolean} Whether hyper-visible blob debug mode is active (B key) */
+    debugBlobMode: false,
 
     /* -- Performance Tracking --------------------------- */
 
@@ -70,7 +72,39 @@ const DebugMode = {
     },
 
     /**
-     * Render the debug HUD onto the given canvas context.
+     * Toggle hyper-visible blob debug mode on/off.
+     * @returns {void}
+     */
+    toggleBlobDebug() {
+        this.debugBlobMode = !this.debugBlobMode;
+        console.log('[Debug] Blob debug mode:', this.debugBlobMode ? 'ON' : 'OFF');
+    },
+
+    /**
+     * Override all signal anchor params with extreme values so blobs are
+     * unmistakably visible regardless of telemetry-derived settings.
+     * Disables camera-colour override (anchor.color = null) and forces a
+     * bright red HSL gradient.  Must be called every frame while active.
+     * @param {SignalAnchor[]} signals - Array of active signal anchors
+     * @returns {void}
+     */
+    applyBlobDebugParams(signals) {
+        signals.forEach(s => {
+            if (!s.params) return;
+            s.params.size        = 0.05;
+            s.params.density     = 8.0;
+            s.params.opacity     = 2.0;
+            s.params.hue         = 0;
+            s.params.saturation  = 100;
+            s.params.brightness  = 100;
+            s.params.radiusLimit = 800;
+            s.params.emissionRate = 50;
+            s.color = null;                      // disable camera-colour override
+            if (s._buildGradient) s._buildGradient();
+        });
+    },
+
+    /**
      * Draws a semi-transparent background panel in the top-left corner
      * with three sections: TELEMETRY, PERFORMANCE, and ATOM FLUID params.
      * Only renders when {@link DebugMode.enabled} is true.
@@ -185,6 +219,10 @@ const DebugMode = {
      */
     _drawWebGLPanel(ctx, canvas) {
         const wglLines = ['── WEBGL FLUID ──'];
+
+        if (this.debugBlobMode) {
+            wglLines.push('⚠ BLOB DEBUG ON — params overridden');
+        }
 
         if (AtomFluidEngine._noGL) {
             wglLines.push('STATUS: NO WEBGL CONTEXT');

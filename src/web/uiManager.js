@@ -512,11 +512,13 @@ const UIManager = {
             });
         }
 
-        // D key for debug
+        // D key for debug, B key for blob debug
         window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
             if (e.key === 'd' || e.key === 'D') {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
                 DebugMode.toggle();
+            } else if (e.key === 'b' || e.key === 'B') {
+                DebugMode.toggleBlobDebug();
             }
         });
     }
