@@ -460,16 +460,24 @@ const AtomFluidEngine = {
 
     /**
      * Test whether the current `_ext` format can actually be used as an FBO
-     * render target. If not (e.g. Pi VideoCore: OES_texture_half_float exists
-     * but EXT_color_buffer_half_float does not), silently downgrade to
-     * UNSIGNED_BYTE RGBA which is always renderable in any WebGL implementation.
+     * render target by performing TWO checks:
+     *   1. gl.checkFramebufferStatus() — basic completeness.
+     *   2. gl.clear() + gl.readPixels() — actual write verification.
+     *
+     * Check 1 alone is insufficient: Raspberry Pi VideoCore VI reports
+     * FRAMEBUFFER_COMPLETE for RGBA16F FBOs but silently discards all writes,
+     * leaving the density field at zero and all blobs invisible.  The readPixels
+     * attempt exposes the broken write path because the incompatibility error
+     * (GL_INVALID_OPERATION) indicates the GPU cannot use this format.
+     *
+     * Falls back to UNSIGNED_BYTE RGBA on any failure.
      * @private
      */
     _probeFBOSupport() {
         const gl = this.gl;
         const e = this._ext;
 
-        // Create a minimal 1×1 test FBO with the candidate format
+        // ── Step 1: create a 1×1 test FBO ────────────────────────────────────
         const testTex = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, testTex);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -477,36 +485,65 @@ const AtomFluidEngine = {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texImage2D(gl.TEXTURE_2D, 0, e.internalFormat, 1, 1, 0, gl.RGBA, e.texType, null);
+        gl.bindTexture(gl.TEXTURE_2D, null);
 
         const testFBO = gl.createFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, testFBO);
-        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, testTex, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                                gl.TEXTURE_2D, testTex, 0);
 
         const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
 
-        // Clean up test objects
+        // ── Step 2: write + read-back test (while FBO is still bound) ─────────
+        let writeOK = false;
+        if (status === gl.FRAMEBUFFER_COMPLETE) {
+            gl.clearColor(0.502, 0.0, 0.0, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.clearColor(0.0, 0.0, 0.0, 0.0); // restore immediately
+
+            // For WebGL2 float FBOs the correct read-back type is FLOAT.
+            // For WebGL1 UNSIGNED_BYTE FBOs it is UNSIGNED_BYTE.
+            // If readPixels itself returns GL_INVALID_OPERATION the GPU does not
+            // support this FBO format — treat that as a write failure.
+            if (this._isWebGL2) {
+                const buf = new Float32Array(4);
+                gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, buf);
+                const err = gl.getError();
+                writeOK = (err === gl.NO_ERROR) && (buf[0] > 0.1);
+                if (err !== gl.NO_ERROR) {
+                    console.warn('[AtomFluidEngine] readPixels(FLOAT) failed on RGBA16F FBO ' +
+                        '(GL error 0x' + err.toString(16) + ') — GPU cannot use this format.');
+                }
+            } else {
+                const buf = new Uint8Array(4);
+                gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+                writeOK = (gl.getError() === gl.NO_ERROR) && (buf[0] > 50);
+            }
+        }
+
+        // ── Cleanup ───────────────────────────────────────────────────────────
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-        gl.bindTexture(gl.TEXTURE_2D, null);
         gl.deleteFramebuffer(testFBO);
         gl.deleteTexture(testTex);
+        gl.getError(); // flush any pending error from cleanup
 
-        if (status !== gl.FRAMEBUFFER_COMPLETE) {
-            console.warn(
-                '[AtomFluidEngine] Float/half-float FBO not supported on this GPU ' +
-                '(status 0x' + status.toString(16) + '). ' +
-                'Falling back to UNSIGNED_BYTE — blobs will be visible but lower precision.'
-            );
-            // UNSIGNED_BYTE RGBA is the only format guaranteed renderable in all WebGL
+        // ── Decide ────────────────────────────────────────────────────────────
+        const needsFallback = (status !== gl.FRAMEBUFFER_COMPLETE) || !writeOK;
+        if (needsFallback) {
+            const reason = status !== gl.FRAMEBUFFER_COMPLETE
+                ? 'FBO incomplete (0x' + status.toString(16) + ')'
+                : 'write+readback failed (GPU silently discards renders to this format)';
+            console.warn('[AtomFluidEngine] Falling back to UNSIGNED_BYTE: ' + reason);
             this._ext = {
                 internalFormat:   gl.RGBA,
                 internalFormatRG: gl.RGBA,
                 formatRG:         gl.RGBA,
                 texType:          gl.UNSIGNED_BYTE
             };
-            // UNSIGNED_BYTE always supports linear filtering — no extension needed
             this._supportLinear = true;
         } else {
-            console.log('[AtomFluidEngine] FBO format probe passed (texType=' + e.texType + ').');
+            console.log('[AtomFluidEngine] FBO write probe passed ' +
+                '(texType=0x' + e.texType.toString(16) + ').');
         }
     },
 
@@ -1163,15 +1200,16 @@ const AtomFluidEngine = {
         // ── Periodic density sample for debug HUD (every 60 frames) ──────────
         // Reads one pixel from the center of the density FBO. Non-zero means
         // splats are actually accumulating; zero means writes are broken.
+        // Only safe for UNSIGNED_BYTE FBOs — readPixels with UNSIGNED_BYTE on a
+        // float/half-float FBO generates GL_INVALID_OPERATION and spams logs.
         this._renderCount = (this._renderCount || 0) + 1;
-        if (this._renderCount % 60 === 1 && this.diag) {
+        if (this._renderCount % 60 === 1 && this.diag &&
+                this._ext && this._ext.texType === gl.UNSIGNED_BYTE) {
             try {
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this._density.first[1]);
                 const cx = Math.max(1, Math.floor((this._texW || 2) / 2));
                 const cy = Math.max(1, Math.floor((this._texH || 2) / 2));
                 const pix = new Uint8Array(4);
-                // RGBA/UNSIGNED_BYTE readback always valid for UNSIGNED_BYTE FBOs;
-                // for float FBOs it may return 0 — but that itself is diagnostic.
                 gl.readPixels(cx, cy, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pix);
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null);
                 if (gl.getError() === gl.NO_ERROR) {
