@@ -143,24 +143,6 @@ const DebugMode = {
             lines.push(`total splats: ${AtomFluidEngine.getTotalSplats()}`);
         }
 
-        // WebGL fluid diagnostics — always shown when debug is on
-        lines.push('');
-        lines.push('── WEBGL FLUID ──');
-        if (AtomFluidEngine._noGL) {
-            lines.push('STATUS: NO WEBGL CONTEXT');
-        } else if (!AtomFluidEngine.diag) {
-            lines.push('STATUS: not yet initialised');
-        } else {
-            const d = AtomFluidEngine.diag;
-            lines.push(`ctx: ${d.wglVer}  fmt: ${d.texType}`);
-            lines.push(`drawBuf: ${d.bufSize}  texFBO: ${d.texSize}`);
-            lines.push(`linear: ${d.linear}  fboWrite: ${d.fboWrite}`);
-            lines.push(`density@center: ${d.densitySample || '(not sampled yet)'}`);
-            lines.push(`totalSplats: ${AtomFluidEngine.getTotalSplats()}`);
-            const canvas = AtomFluidEngine.canvas;
-            lines.push(`fluidCanvas: ${canvas ? canvas.width + 'x' + canvas.height : 'null'}`);
-        }
-
         // Draw HUD background
         const padding = 10;
         const lineH = 14;
@@ -186,6 +168,60 @@ const DebugMode = {
                 ctx.fillStyle = '#FEFDFB';
             }
             ctx.fillText(line, padding + 8, padding + 6 + i * lineH);
+        });
+
+        ctx.restore();
+
+        // WebGL diagnostics in a separate top-right panel — always fully visible
+        this._drawWebGLPanel(ctx, canvas);
+    },
+
+    /**
+     * Draw the WebGL fluid diagnostic panel in the top-right corner.
+     * Separate from the main HUD so it is never cropped regardless of
+     * how many signal lines the main panel contains.
+     * @param {CanvasRenderingContext2D} ctx
+     * @param {HTMLCanvasElement} canvas
+     */
+    _drawWebGLPanel(ctx, canvas) {
+        const wglLines = ['── WEBGL FLUID ──'];
+
+        if (AtomFluidEngine._noGL) {
+            wglLines.push('STATUS: NO WEBGL CONTEXT');
+        } else if (!AtomFluidEngine.diag) {
+            wglLines.push('STATUS: not yet initialised');
+        } else {
+            const d = AtomFluidEngine.diag;
+            wglLines.push(`ctx: ${d.wglVer}  fmt: ${d.texType}`);
+            wglLines.push(`drawBuf: ${d.bufSize}  texFBO: ${d.texSize}`);
+            wglLines.push(`linear: ${d.linear}  fboWrite: ${d.fboWrite}`);
+            wglLines.push(`density@center: ${d.densitySample || '(not sampled yet)'}`);
+            wglLines.push(`totalSplats: ${AtomFluidEngine.getTotalSplats()}`);
+            const fc = AtomFluidEngine.canvas;
+            wglLines.push(`fluidCanvas: ${fc ? fc.width + 'x' + fc.height : 'null'}`);
+        }
+
+        const padding = 10;
+        const lineH = 14;
+        const panW = 340;
+        const panH = wglLines.length * lineH + padding * 2;
+        const panX = canvas.width - panW - padding;
+        const panY = padding;
+
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.beginPath();
+        ctx.roundRect(panX, panY, panW, panH, 6);
+        ctx.fill();
+
+        ctx.globalAlpha = 1;
+        ctx.font = '11px "Space Grotesk", sans-serif';
+        ctx.textBaseline = 'top';
+
+        wglLines.forEach((line, i) => {
+            ctx.fillStyle = line.startsWith('──') ? '#FF6103' : '#FEFDFB';
+            ctx.fillText(line, panX + padding - 2, panY + 6 + i * lineH);
         });
 
         ctx.restore();
