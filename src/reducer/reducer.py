@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, hashlib, json, os, sys, time
+import argparse, hashlib, json, math, os, sys, time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -82,6 +82,33 @@ def reduce_bt(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any]]:
     out.sort(key=lambda x: x.get("strength", 0.0), reverse=True)
     return out
 
+def compute_telemetry(wifi_aps: List[Dict[str, Any]], bt_devices: List[Dict[str, Any]]) -> Dict[str, Any]:
+    wifi_count = len(wifi_aps)
+    bt_count = len(bt_devices)
+    total_count = wifi_count + bt_count
+
+    rssi_vals = [ap["signal_dbm"] for ap in wifi_aps
+                 if isinstance(ap.get("signal_dbm"), (int, float))]
+    if rssi_vals:
+        mean_rssi = sum(rssi_vals) / len(rssi_vals)
+        variance = sum((v - mean_rssi) ** 2 for v in rssi_vals) / len(rssi_vals)
+        rssi_stddev = math.sqrt(variance)
+    else:
+        mean_rssi = -80.0
+        rssi_stddev = 0.0
+
+    ble_ratio = bt_count / max(1, total_count)
+
+    return {
+        "wifi_count": wifi_count,
+        "bt_count": bt_count,
+        "total_count": total_count,
+        "wifi_mean_rssi": round(mean_rssi, 2),
+        "wifi_rssi_variance": round(rssi_stddev, 2),
+        "ble_ratio": round(ble_ratio, 4),
+    }
+
+
 def atomic_write(path: str, obj: Any):
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -139,12 +166,16 @@ def main():
             wifi_devs = normalize_devices(wifi_payload) if wifi_payload else []
             bt_devs = normalize_devices(bt_payload) if bt_payload else []
 
+            wifi_aps = reduce_wifi_aps(wifi_devs, salt)
+            bt_devices = reduce_bt(bt_devs, salt)
+
             state = {
                 "ts": ts,
                 "window_s": args.window,
                 "views": {"wifi": wifi_view_used, "bt": bt_view_used},
-                "wifi": {"aps": reduce_wifi_aps(wifi_devs, salt)},
-                "bt": {"devices": reduce_bt(bt_devs, salt)},
+                "wifi": {"aps": wifi_aps},
+                "bt": {"devices": bt_devices},
+                "telemetry": compute_telemetry(wifi_aps, bt_devices),
             }
 
             atomic_write(args.out, state)

@@ -1,25 +1,187 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
+
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Shadow Creatures</title>
-  <link rel="stylesheet" href="/style.css" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Creatures — Ghost Signal</title>
+    <meta name="description" content="Shadow Creatures: speculative camera revealing invisible wireless presences as smoke cloud particle systems.">
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <div id="stage">
-    <img id="feed" src="/mjpeg" alt="camera feed" />
-    <canvas id="overlay"></canvas>
+    <div id="app">
+        <!-- SIDEBAR (hidden by default, overlays on toggle) -->
+        <aside id="sidebar">
+            <header id="sidebar-header">
+                <h1>GHOST SIGNAL</h1>
+                <span class="subtitle">SHADOW CREATURES vAtom</span>
+            </header>
 
-    <div id="hud">
-      <div class="row">
-        <button id="mode">Mode</button>
-        <button id="snap">Snapshot</button>
-      </div>
-      <div id="status">connecting...</div>
+            <!-- Connection Status / Mode -->
+            <section class="panel" id="panel-connection">
+                <div class="panel-header">
+                    <span class="panel-title">STATUS</span>
+                </div>
+                <div class="panel-body">
+                    <div id="ws-status" style="font-size: 10px; color: #FF6103; padding: 4px 0; opacity: 0.8;">
+                        CONNECTING...
+                    </div>
+                    <button class="btn btn-action" id="btn-mode">MODE: BOTH</button>
+                    <button class="btn btn-action" id="btn-add-signal">ADD SIGNAL</button>
+                    <button class="btn btn-action" id="btn-deform-mode" disabled>DEFORM MODE: OFF</button>
+                    <div id="placement-indicator" class="hidden">
+                        <span class="indicator-dot"></span> CLICK ON IMAGE TO PLACE
+                    </div>
+                </div>
+            </section>
+
+            <!-- Telemetry -->
+            <section class="panel" id="panel-telemetry">
+                <div class="panel-header">
+                    <span class="panel-title">TELEMETRY</span>
+                </div>
+                <div class="panel-body">
+                    <div class="param-toggle-row">
+                        <span class="param-label">manual params override</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="manual-params-toggle">
+                        </label>
+                    </div>
+                    <div class="param-toggle-row" style="margin-top: 6px;">
+                        <span class="param-label">max signals</span>
+                        <input type="number" id="max-signals-input" value="15" min="1" max="50"
+                            style="width: 50px; background: #F0EFED; color: #1A1A18; border: 1px solid #D0CECC; padding: 2px 4px; font-size: 11px;">
+                    </div>
+                </div>
+            </section>
+
+            <!-- 360 View -->
+            <section class="panel" id="panel-view">
+                <div class="panel-header">
+                    <span class="panel-title">360 VIEW</span>
+                </div>
+                <div class="panel-body">
+                    <div id="view-status" style="font-size: 10px; color: #FF6103; padding: 4px 0; opacity: 0.8;">
+                        YAW: 0 | PITCH: 0 | SOURCE: mouse
+                    </div>
+                    <button class="btn btn-action" id="btn-reset-north">RESET NORTH</button>
+                    <div style="font-size: 9px; color: #605E5C; padding: 4px 0;">Drag canvas to rotate view</div>
+                </div>
+            </section>
+
+            <!-- Layer Stack -->
+            <section class="panel" id="panel-layers">
+                <div class="panel-header">
+                    <span class="panel-title">LAYER STACK</span>
+                    <button class="btn-icon" id="btn-add-layer" title="Add Layer">+</button>
+                </div>
+                <div class="panel-body">
+                    <div id="layer-menu" class="hidden">
+                        <button class="layer-menu-item" data-layer="signal">Signal Layer</button>
+                        <button class="layer-menu-item" data-layer="data">Data Layer</button>
+                    </div>
+                    <ul id="layer-list"></ul>
+                </div>
+            </section>
+
+            <!-- Signal Cloud List -->
+            <section class="panel" id="panel-signals">
+                <div class="panel-header">
+                    <span class="panel-title">SIGNAL CLOUDS</span>
+                    <span class="panel-count" id="signal-count">0</span>
+                </div>
+                <div class="panel-body">
+                    <ul id="signal-list"></ul>
+                </div>
+            </section>
+
+            <!-- Active Parameter Panel -->
+            <section class="panel" id="panel-params">
+                <div class="panel-header">
+                    <span class="panel-title" id="params-title">PARAMETERS</span>
+                </div>
+                <div class="panel-body" id="params-body">
+                    <p class="placeholder-text">Select a signal cloud or layer to edit parameters.</p>
+                </div>
+            </section>
+
+            <!-- Debug Mode -->
+            <section class="panel" id="panel-debug">
+                <div class="panel-header">
+                    <span class="panel-title">DEBUG</span>
+                </div>
+                <div class="panel-body">
+                    <div class="param-toggle-row">
+                        <span class="param-label">Debug Mode (D)</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="debug-toggle">
+                        </label>
+                    </div>
+                    <div class="param-toggle-row">
+                        <span class="param-label">Include in export</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="debug-export-toggle">
+                        </label>
+                    </div>
+                    <div class="param-toggle-row">
+                        <span class="param-label">Freeze telemetry</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="telemetry-freeze">
+                        </label>
+                    </div>
+                    <div class="param-toggle-row">
+                        <span class="param-label">Jitter telemetry</span>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="telemetry-jitter">
+                        </label>
+                    </div>
+                </div>
+            </section>
+        </aside>
+
+        <!-- MAIN VIEWPORT (always full screen) -->
+        <main id="viewport">
+            <div id="canvas-container">
+                <canvas id="main-canvas"></canvas>
+            </div>
+            <!-- Hidden MJPEG feed image (used as texture source) -->
+            <img id="feed" style="display:none" crossorigin="anonymous">
+            <!-- Sidebar toggle button (bottom-left) -->
+            <button id="btn-sidebar-toggle" class="sidebar-toggle-btn">PANEL</button>
+            <!-- Capture button (bottom-right) -->
+            <button id="btn-capture" class="capture-btn">CAPTURE</button>
+            <div id="version-tag">vAtom</div>
+            <div id="status-bar">
+                <span id="status-resolution">&mdash;</span>
+                <span id="status-layers">0 layers</span>
+                <span id="status-signals">0 signals</span>
+                <span id="status-fps">&mdash;</span>
+            </div>
+        </main>
     </div>
-  </div>
 
-  <script src="/app.js"></script>
+    <!-- Core utilities (no cross-dependencies) -->
+    <script src="utils.js"></script>
+    <script src="state.js"></script>
+    <script src="layers.js"></script>
+    <script src="telemetryMapper.js"></script>
+
+    <!-- Standalone modules -->
+    <script src="telemetry.js"></script>
+    <script src="atomFluid.js"></script>
+    <script src="debug.js"></script>
+
+    <!-- Application modules -->
+    <script src="imageDeformPass.js"></script>
+    <script src="uiManager.js"></script>
+    <script src="orientationManager.js"></script>
+    <script src="camera.js"></script>
+    <script src="deformEngine.js"></script>
+    <script src="renderer.js"></script>
+
+    <!-- Bootstrap -->
+    <script src="app.js"></script>
 </body>
+
 </html>

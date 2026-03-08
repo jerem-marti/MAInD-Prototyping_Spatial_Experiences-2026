@@ -36,6 +36,14 @@ This file is the single source of truth exchanged between the Reducer and the Ba
         "strength": 0.33
       }
     ]
+  },
+  "telemetry": {
+    "wifi_count": 12,
+    "bt_count": 5,
+    "total_count": 17,
+    "wifi_mean_rssi": -52.3,
+    "wifi_rssi_variance": 8.7,
+    "ble_ratio": 0.2941
   }
 }
 ```
@@ -49,6 +57,7 @@ This file is the single source of truth exchanged between the Reducer and the Ba
 | `views` | object | Which Kismet view name was used for each category (`null` if unavailable) |
 | `wifi` | object | Contains `aps` array |
 | `bt` | object | Contains `devices` array |
+| `telemetry` | object | Aggregate telemetry stats for the visual effect engine |
 
 ### Wi-Fi AP object (`wifi.aps[]`)
 
@@ -71,6 +80,17 @@ This file is the single source of truth exchanged between the Reducer and the Ba
 | `signal_dbm` | int/null | Raw signal strength in dBm |
 | `strength` | float 0-1 | Normalized: `clamp((dBm + 90) / 60, 0, 1)` |
 
+### Telemetry object (`telemetry`)
+
+| Field | Type | Description |
+|---|---|---|
+| `wifi_count` | int | Number of Wi-Fi APs detected in this window |
+| `bt_count` | int | Number of Bluetooth devices detected in this window |
+| `total_count` | int | `wifi_count + bt_count` |
+| `wifi_mean_rssi` | float | Mean RSSI in dBm across all Wi-Fi APs (default -80 if no APs) |
+| `wifi_rssi_variance` | float | Standard deviation of Wi-Fi RSSI values in dB |
+| `ble_ratio` | float 0-1 | Ratio of BT devices to total devices |
+
 ### Notes
 
 - Arrays are sorted by `strength` descending (strongest first)
@@ -87,7 +107,10 @@ The backend (`server.py`) watches this file every 0.2 s and pushes it over WebSo
 { "type": "state", "state": { /* full ghost_state content */ } }
 ```
 
-The overlay (`app.js`) then renders:
-- **Wi-Fi APs** as fog circles (mode 0 or 2), up to 25 strongest
-- **BT devices** as spark particles (mode 1 or 2), up to 40 strongest
-- Position is derived deterministically from the hash ID
+The frontend (`app.js` + `telemetry.js`) then:
+- Ingests the state via `Telemetry.ingestState(msg.state)`
+- Uses `telemetry.*` aggregate stats to drive visual parameters (smoke density, radius, speed, etc.) via `TelemetryMapper`
+- Hashes each `wifi.aps[].id` to azimuth/elevation for 360-degree globe positioning
+- Top N devices (default 15, configurable) sorted by RSSI are projected through a view frustum as `SignalAnchor` instances
+- Each anchor emits colored fluid splats into a shared WebGL Navier-Stokes solver (`AtomFluidEngine`)
+- The fluid sim is composited over the MJPEG camera feed at `/mjpeg`

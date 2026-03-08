@@ -35,5 +35,13 @@
         "strength": 0.33
       }
     ]
+  },
+  "telemetry": {
+    "wifi_count": 2,
+    "bt_count": 1,
+    "total_count": 3,
+    "wifi_mean_rssi": -45.0,
+    "wifi_rssi_variance": 14.14,
+    "ble_ratio": 0.3333
   }
 }
