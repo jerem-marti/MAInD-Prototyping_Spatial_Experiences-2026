@@ -129,8 +129,8 @@ const Telemetry = {
             this.raw.totalDeviceCount = tel.total_count || (this.raw.wifiDeviceCount + this.raw.btleCount);
             this.raw.bleRatio = tel.ble_ratio || 0;
 
-            // Derive burst rate from device count (approximate, since RRD not available)
-            this.raw.wifiBurstRate = this.raw.wifiDeviceCount * 50;
+            // Real burst rate from reducer (sum of Kismet minute_vec across all WiFi APs)
+            this.raw.wifiBurstRate = tel.wifi_burst_rate || 0;
 
             this.raw.timestamp = (ghostState.ts || Date.now() / 1000) * 1000;
 

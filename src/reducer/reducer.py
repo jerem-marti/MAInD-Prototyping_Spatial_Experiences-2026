@@ -51,6 +51,14 @@ def reduce_wifi_aps(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any
         channel = first_key(d, ["kismet.device.base.channel"], default=None)
         sig_dbm = first_key(d, ["kismet.common.signal.last_signal_dbm"], default=None)
 
+        # Sum the 60-second packet RRD minute_vec to get packets-per-minute for this AP
+        burst_rate = 0
+        pkt_rrd = d.get("kismet.device.base.packets.rrd")
+        if isinstance(pkt_rrd, dict):
+            minute_vec = pkt_rrd.get("kismet.common.rrd.minute_vec")
+            if isinstance(minute_vec, list):
+                burst_rate = sum(minute_vec)
+
         hid = stable_hash(salt, str(mac))
         out.append({
             "id": hid,
@@ -59,6 +67,7 @@ def reduce_wifi_aps(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any
             "channel": channel,
             "signal_dbm": sig_dbm,
             "strength": dbm_to_strength(sig_dbm if isinstance(sig_dbm, (int, float)) else None),
+            "burst_rate": burst_rate,
         })
     out.sort(key=lambda x: x.get("strength", 0.0), reverse=True)
     return out
@@ -99,6 +108,9 @@ def compute_telemetry(wifi_aps: List[Dict[str, Any]], bt_devices: List[Dict[str,
 
     ble_ratio = bt_count / max(1, total_count)
 
+    # Sum minute_vec burst rates across all APs (packets captured in last 60s)
+    wifi_burst_rate = sum(ap.get("burst_rate", 0) for ap in wifi_aps)
+
     return {
         "wifi_count": wifi_count,
         "bt_count": bt_count,
@@ -106,6 +118,7 @@ def compute_telemetry(wifi_aps: List[Dict[str, Any]], bt_devices: List[Dict[str,
         "wifi_mean_rssi": round(mean_rssi, 2),
         "wifi_rssi_variance": round(rssi_stddev, 2),
         "ble_ratio": round(ble_ratio, 4),
+        "wifi_burst_rate": wifi_burst_rate,
     }
 
 
