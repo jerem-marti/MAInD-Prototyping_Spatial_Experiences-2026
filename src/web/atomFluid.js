@@ -317,8 +317,11 @@ const AtomFluidEngine = {
         const isWGL2 = this._isWebGL2;
 
         if (isWGL2) {
-            // WebGL2: prefer 16-bit float. Try to enable float colour buffers and
-            // linear filtering; fall back via _probeFBOSupport() when unavailable.
+            // WebGL2: prefer 16-bit float. Enable float colour buffers and query
+            // linear filtering. The FBO write probe runs *after* shader/blit init
+            // (below) so it can use an actual draw call — gl.clear alone is not
+            // sufficient because on Pi VC6 gl.clear works on RGBA16F FBOs while
+            // fragment-shader writes (gl.drawElements) silently fail.
             gl.getExtension("EXT_color_buffer_float");
             const linearExt = gl.getExtension("OES_texture_float_linear");
             this._supportLinear = !!linearExt;
@@ -328,9 +331,6 @@ const AtomFluidEngine = {
                 formatRG:         gl.RG,
                 texType:          gl.HALF_FLOAT
             };
-            // On WebGL2 contexts that lack EXT_color_buffer_float the probe will
-            // downgrade to UNSIGNED_BYTE.
-            this._probeFBOSupport();
         } else {
             // WebGL1 (e.g. Raspberry Pi VideoCore): UNSIGNED_BYTE RGBA is the
             // ONLY texture format the spec guarantees is renderable as an FBO.
@@ -352,6 +352,11 @@ const AtomFluidEngine = {
         this._compileShaders();
         this._createPrograms();
         this._initBlit();
+        // WebGL2 only: probe must run after programs+blit are ready so that the
+        // test can use a real shader draw call (gl.drawElements) rather than
+        // gl.clear, which takes a different GPU fast-path and can pass on broken
+        // drivers even when fragment-shader writes silently fail.
+        if (isWGL2) this._probeFBOSupport();
         this._initFramebuffers();
         this._runDiagnostics();
     },
@@ -460,15 +465,19 @@ const AtomFluidEngine = {
 
     /**
      * Test whether the current `_ext` format can actually be used as an FBO
-     * render target by performing TWO checks:
-     *   1. gl.checkFramebufferStatus() — basic completeness.
-     *   2. gl.clear() + gl.readPixels() — actual write verification.
+     * render target by performing two checks:
+     *   1. gl.checkFramebufferStatus() — driver-level completeness.
+     *   2. A real shader DRAW CALL (gl.drawElements via the 'clear' program)
+     *      followed by gl.readPixels(FLOAT) — actual GPU write verification.
      *
-     * Check 1 alone is insufficient: Raspberry Pi VideoCore VI reports
-     * FRAMEBUFFER_COMPLETE for RGBA16F FBOs but silently discards all writes,
-     * leaving the density field at zero and all blobs invisible.  The readPixels
-     * attempt exposes the broken write path because the incompatibility error
-     * (GL_INVALID_OPERATION) indicates the GPU cannot use this format.
+     * Why a draw call and not gl.clear:
+     *   On Raspberry Pi VideoCore VI, RGBA16F FBOs report FRAMEBUFFER_COMPLETE
+     *   and gl.clear writes are readable.  But fragment-shader writes
+     *   (gl.drawElements) are silently discarded — all blobs invisible.
+     *   Only testing with an actual draw call catches this driver bug.
+     *
+     * Must be called AFTER _createPrograms() and _initBlit() so that
+     * this._programs.clear and the quad buffers are available.
      *
      * Falls back to UNSIGNED_BYTE RGBA on any failure.
      * @private
@@ -477,7 +486,7 @@ const AtomFluidEngine = {
         const gl = this.gl;
         const e = this._ext;
 
-        // ── Step 1: create a 1×1 test FBO ────────────────────────────────────
+        // ── Step 1: create a 1×1 test FBO with the candidate format ──────────
         const testTex = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, testTex);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
@@ -493,46 +502,69 @@ const AtomFluidEngine = {
                                 gl.TEXTURE_2D, testTex, 0);
 
         const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-        // ── Step 2: write + read-back test (while FBO is still bound) ─────────
+        // ── Step 2: real shader draw call into the test FBO ───────────────────
+        // gl.clear alone is not sufficient — it uses a different GPU fast-path.
+        // We use the 'clear' program:  gl_FragColor = value * texture2D(uTexture)
+        // Source: 1×1 red RGBA/UNSIGNED_BYTE texture  →  r=1.0 in shader output
+        // With value=1.0 the draw writes r=1.0 into the FBO.
         let writeOK = false;
         if (status === gl.FRAMEBUFFER_COMPLETE) {
-            gl.clearColor(0.502, 0.0, 0.0, 1.0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.clearColor(0.0, 0.0, 0.0, 0.0); // restore immediately
+            // Create a tiny source texture (always UNSIGNED_BYTE — always valid)
+            const srcTex = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, srcTex);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+                          new Uint8Array([255, 0, 0, 255]));  // r=1.0 when sampled
 
-            // For WebGL2 float FBOs the correct read-back type is FLOAT.
-            // For WebGL1 UNSIGNED_BYTE FBOs it is UNSIGNED_BYTE.
-            // If readPixels itself returns GL_INVALID_OPERATION the GPU does not
-            // support this FBO format — treat that as a write failure.
-            if (this._isWebGL2) {
-                const buf = new Float32Array(4);
-                gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, buf);
-                const err = gl.getError();
-                writeOK = (err === gl.NO_ERROR) && (buf[0] > 0.1);
-                if (err !== gl.NO_ERROR) {
-                    console.warn('[AtomFluidEngine] readPixels(FLOAT) failed on RGBA16F FBO ' +
-                        '(GL error 0x' + err.toString(16) + ') — GPU cannot use this format.');
-                }
-            } else {
-                const buf = new Uint8Array(4);
-                gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
-                writeOK = (gl.getError() === gl.NO_ERROR) && (buf[0] > 50);
+            // Clear destination to zero so we can detect a silent write failure
+            gl.bindFramebuffer(gl.FRAMEBUFFER, testFBO);
+            gl.viewport(0, 0, 1, 1);
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+
+            // Draw with the clear program: output = 1.0 * red_texture = (1,0,0,1)
+            const cp = this._programs.clear;
+            cp.bind();
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, srcTex);
+            gl.uniform1i(cp.uniforms.uTexture, 0);
+            gl.uniform1f(cp.uniforms.value,    1.0);
+            this._blit(testFBO);   // binds testFBO and calls drawElements
+
+            // Read back with FLOAT (correct format for RGBA16F FBOs in WebGL2)
+            const buf = new Float32Array(4);
+            gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, buf);
+            const err = gl.getError();
+            writeOK = (err === gl.NO_ERROR) && (buf[0] > 0.5);
+
+            if (!writeOK) {
+                const detail = err
+                    ? ('readPixels err 0x' + err.toString(16))
+                    : ('r=' + buf[0].toFixed(3) + ' (expected >0.5)');
+                console.warn('[AtomFluidEngine] Shader write probe FAILED on RGBA16F FBO: ' +
+                    detail + ' — fragment-shader writes are silently discarded on this GPU.');
             }
+
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            gl.deleteTexture(srcTex);
         }
 
         // ── Cleanup ───────────────────────────────────────────────────────────
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.deleteFramebuffer(testFBO);
         gl.deleteTexture(testTex);
-        gl.getError(); // flush any pending error from cleanup
+        gl.getError(); // flush any residual error
 
         // ── Decide ────────────────────────────────────────────────────────────
         const needsFallback = (status !== gl.FRAMEBUFFER_COMPLETE) || !writeOK;
         if (needsFallback) {
             const reason = status !== gl.FRAMEBUFFER_COMPLETE
                 ? 'FBO incomplete (0x' + status.toString(16) + ')'
-                : 'write+readback failed (GPU silently discards renders to this format)';
+                : 'shader draw call produced no output (GPU silently discards writes)';
             console.warn('[AtomFluidEngine] Falling back to UNSIGNED_BYTE: ' + reason);
             this._ext = {
                 internalFormat:   gl.RGBA,
@@ -542,7 +574,7 @@ const AtomFluidEngine = {
             };
             this._supportLinear = true;
         } else {
-            console.log('[AtomFluidEngine] FBO write probe passed ' +
+            console.log('[AtomFluidEngine] FBO shader-write probe passed ' +
                 '(texType=0x' + e.texType.toString(16) + ').');
         }
     },
