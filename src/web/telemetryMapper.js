@@ -57,10 +57,10 @@ const TelemetryMapper = {
         signal.params.size = signal.params.radiusLimit / 65000;
 
         // --- density: total device count (RF crowding) ---
-        signal.params.density = 0.15 + n.totalDeviceCount * 0.95;
+        signal.params.density = 0.30 + n.totalDeviceCount * 0.80;
 
         // --- speed: packet activity rate ---
-        signal.params.speed = 0.2 + n.wifiBurstRate * 4.8;
+        signal.params.speed = 0.50 + n.wifiBurstRate * 3.5;
 
         // --- curlRadius: event-triggered spike + decay ---
         // Spike when device count changes (new device detected)
@@ -80,11 +80,11 @@ const TelemetryMapper = {
 
         // --- saturation: RSSI strength ---
         // Weak signal = desaturated (fades toward background), strong = vivid
-        signal.params.saturation = 30 + n.wifiMeanRssi * 70;
+        signal.params.saturation = 40 + n.wifiMeanRssi * 60;
 
         // --- opacity: burst rate delta (temporal freshness) ---
         // Smooth towards target to avoid flicker
-        const targetOpacity = 0.1 + Math.min(1, n.burstRateDelta + n.wifiBurstRate * 0.6) * 0.5;
+        const targetOpacity = 0.35 + Math.min(1, n.burstRateDelta + n.wifiBurstRate * 0.6) * 0.45;
         st.smoothedOpacity += (targetOpacity - st.smoothedOpacity) * 0.08;
         signal.params.opacity = st.smoothedOpacity;
 

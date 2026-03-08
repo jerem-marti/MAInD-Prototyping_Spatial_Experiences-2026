@@ -34,6 +34,14 @@ const Telemetry = {
         wifiBurstRate: 0
     },
 
+    // Adaptive normalization windows so low-traffic deployments (Pi) still
+    // get expressive visual ranges without hardcoding desktop-only maxima.
+    _liveScale: {
+        totalDeviceCountMax: 80,
+        wifiBurstRateMax: 3000,
+        wifiRssiVarianceMax: 10
+    },
+
     normalized: {
         wifiDeviceCount: 0,
         wifiMeanRssi: 0,
@@ -120,17 +128,17 @@ const Telemetry = {
             const btDevices = (ghostState.bt && ghostState.bt.devices) || [];
 
             // Use pre-computed aggregate telemetry from reducer
-            this.raw.wifiDeviceCount = tel.wifi_count || wifiAps.length;
-            this.raw.wifiMeanRssi = tel.wifi_mean_rssi || -65;
-            this.raw.wifiRssiVariance = tel.wifi_rssi_variance || 0;
+            this.raw.wifiDeviceCount = tel.wifi_count ?? wifiAps.length;
+            this.raw.wifiMeanRssi = tel.wifi_mean_rssi ?? -65;
+            this.raw.wifiRssiVariance = tel.wifi_rssi_variance ?? 0;
             this.raw.wifiChannelSpread = 1; // not available from reducer
-            this.raw.btleCount = tel.bt_count || btDevices.length;
+            this.raw.btleCount = tel.bt_count ?? btDevices.length;
             this.raw.btClassicCount = 0; // reducer combines all BT
-            this.raw.totalDeviceCount = tel.total_count || (this.raw.wifiDeviceCount + this.raw.btleCount);
-            this.raw.bleRatio = tel.ble_ratio || 0;
+            this.raw.totalDeviceCount = tel.total_count ?? (this.raw.wifiDeviceCount + this.raw.btleCount);
+            this.raw.bleRatio = tel.ble_ratio ?? 0;
 
             // Real burst rate from reducer (sum of Kismet minute_vec across all WiFi APs)
-            this.raw.wifiBurstRate = tel.wifi_burst_rate || 0;
+            this.raw.wifiBurstRate = tel.wifi_burst_rate ?? 0;
 
             this.raw.timestamp = (ghostState.ts || Date.now() / 1000) * 1000;
 
@@ -184,14 +192,33 @@ const Telemetry = {
         const r = this.raw;
         const clamp01 = (v) => Math.min(1, Math.max(0, v));
 
-        n.wifiDeviceCount   = clamp01(r.wifiDeviceCount / 200);
-        n.wifiMeanRssi      = clamp01((r.wifiMeanRssi + 77) / 61);
-        n.wifiRssiVariance  = clamp01(r.wifiRssiVariance / 15);
+        // Track rolling maxima with slow decay so normalization self-calibrates
+        // to the current environment while remaining stable over time.
+        const decay = 0.995;
+        this._liveScale.totalDeviceCountMax = Math.max(
+            40,
+            this._liveScale.totalDeviceCountMax * decay,
+            r.totalDeviceCount * 1.1
+        );
+        this._liveScale.wifiBurstRateMax = Math.max(
+            800,
+            this._liveScale.wifiBurstRateMax * decay,
+            r.wifiBurstRate * 1.1
+        );
+        this._liveScale.wifiRssiVarianceMax = Math.max(
+            4,
+            this._liveScale.wifiRssiVarianceMax * decay,
+            r.wifiRssiVariance * 1.1
+        );
+
+        n.wifiDeviceCount   = clamp01(r.wifiDeviceCount / Math.max(20, this._liveScale.totalDeviceCountMax * 0.5));
+        n.wifiMeanRssi      = clamp01((r.wifiMeanRssi + 90) / 55);
+        n.wifiRssiVariance  = clamp01(r.wifiRssiVariance / this._liveScale.wifiRssiVarianceMax);
         n.wifiChannelSpread = clamp01(r.wifiChannelSpread / 12);
-        n.wifiBurstRate     = clamp01(r.wifiBurstRate / 10000);
+        n.wifiBurstRate     = clamp01(r.wifiBurstRate / this._liveScale.wifiBurstRateMax);
         n.btleCount         = clamp01(r.btleCount / 400);
         n.btClassicCount    = clamp01(r.btClassicCount / 10);
-        n.totalDeviceCount  = clamp01(r.totalDeviceCount / 500);
+        n.totalDeviceCount  = clamp01(r.totalDeviceCount / this._liveScale.totalDeviceCountMax);
         n.bleRatio          = clamp01(r.bleRatio);
 
         n.deviceCountDelta = clamp01(

@@ -988,6 +988,25 @@ const AtomFluidEngine = {
         return this._hslToRGB(h, satClamped, l);
     },
 
+    /**
+     * Blend sampled image color with HSL target so hue controls remain effective
+     * even when camera sampling is active.
+     *
+     * @private
+     * @param {number[]} sampledRgb - Sampled RGB [0-1].
+     * @param {number[]} hslRgb - HSL-derived RGB [0-1].
+     * @param {number} mixAmount - Blend factor in [0-1].
+     * @returns {number[]} Blended RGB [0-1].
+     */
+    _mixRgb(sampledRgb, hslRgb, mixAmount) {
+        const t = Math.max(0, Math.min(1, mixAmount));
+        return [
+            sampledRgb[0] * (1 - t) + hslRgb[0] * t,
+            sampledRgb[1] * (1 - t) + hslRgb[1] * t,
+            sampledRgb[2] * (1 - t) + hslRgb[2] * t
+        ];
+    },
+
     /* ── Simple noise for wobble ────────────────────────── */
 
     /**
@@ -1082,14 +1101,22 @@ const AtomFluidEngine = {
 
                     let color;
                     if (anchor.color) {
-                        // v16 Baseline: Use sampled color but keep depth with slight random variation for volumetric feel
+                        // Keep camera-sampled chroma, but allow H/S/B to tint it.
                         const rVar = (Math.random() - 0.5) * 0.05;
                         const gVar = (Math.random() - 0.5) * 0.05;
                         const bVar = (Math.random() - 0.5) * 0.05;
+                        const sampled = [
+                            Math.max(0, Math.min(1, anchor.color.r + rVar)),
+                            Math.max(0, Math.min(1, anchor.color.g + gVar)),
+                            Math.max(0, Math.min(1, anchor.color.b + bVar))
+                        ];
+                        const hslTone = this._hslToRGB(p.hue + em.colorOffset * 0.5, p.saturation, p.brightness);
+                        const satMix = Math.max(0.15, Math.min(0.85, p.saturation / 100));
+                        const blended = this._mixRgb(sampled, hslTone, satMix);
                         color = [
-                            (anchor.color.r + rVar) * intensity,
-                            (anchor.color.g + gVar) * intensity,
-                            (anchor.color.b + bVar) * intensity
+                            blended[0] * intensity,
+                            blended[1] * intensity,
+                            blended[2] * intensity
                         ];
                     } else {
                         const rgb = this._lerpGradientRGB(anchor.colorGradient, t, em.colorOffset, p.saturation);
