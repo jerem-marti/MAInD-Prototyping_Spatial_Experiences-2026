@@ -49,7 +49,16 @@ def reduce_wifi_aps(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any
         name = first_key(d, ["kismet.device.base.name", "kismet.device.base.commonname"], default="(unknown)")
         last_time = first_key(d, ["kismet.device.base.last_time"], default=None)
         channel = first_key(d, ["kismet.device.base.channel"], default=None)
-        sig_dbm = first_key(d, ["kismet.common.signal.last_signal_dbm"], default=None)
+
+        # Signal is nested under kismet.device.base.signal, not at the top level.
+        # Kismet uses 0 as a "no data" sentinel — treat as None.
+        base_signal = d.get("kismet.device.base.signal") or {}
+        sig_dbm = first_key(base_signal, [
+            "kismet.common.signal.last_signal",
+            "kismet.common.signal.last_signal_dbm",
+        ], default=None)
+        if sig_dbm == 0:
+            sig_dbm = None
 
         # Sum the 60-second packet RRD minute_vec to get packets-per-minute for this AP
         burst_rate = 0
@@ -78,7 +87,14 @@ def reduce_bt(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any]]:
         mac = first_key(d, ["kismet.device.base.macaddr"], default="unknown")
         name = first_key(d, ["kismet.device.base.name", "kismet.device.base.commonname"], default="(bt)")
         last_time = first_key(d, ["kismet.device.base.last_time"], default=None)
-        sig_dbm = first_key(d, ["kismet.common.signal.last_signal_dbm"], default=None)
+
+        base_signal = d.get("kismet.device.base.signal") or {}
+        sig_dbm = first_key(base_signal, [
+            "kismet.common.signal.last_signal",
+            "kismet.common.signal.last_signal_dbm",
+        ], default=None)
+        if sig_dbm == 0:
+            sig_dbm = None
 
         hid = stable_hash(salt, str(mac))
         out.append({
