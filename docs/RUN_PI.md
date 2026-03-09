@@ -44,11 +44,29 @@ python3 src/backend/server.py
 
 ### 4. Open the Overlay
 
-Open Chromium on the Pi (or any device on the same network):
+Open Chromium on the Pi using the kiosk script:
 
+```bash
+DISPLAY=:0 bash scripts/kiosk.sh
 ```
-http://localhost:8080
+
+Or manually with the required GPU flags:
+
+```bash
+DISPLAY=:0 chromium \
+  --app=http://localhost:8080 \
+  --start-fullscreen \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --password-store=basic \
+  --disable-gpu-video-decode \
+  --disable-software-rasterizer
 ```
+
+> **Note:** `--disable-gpu-video-decode` prevents an intermittent GPU crash
+> (`SharedImageBackingFactory` / `GPU state invalid`) that kills WebGL
+> contexts on the Pi's VideoCore GPU.
 
 ## Quick Start (tmux)
 

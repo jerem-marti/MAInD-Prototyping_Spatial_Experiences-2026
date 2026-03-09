@@ -43,6 +43,14 @@ const ImageDeformPass = {
         if (!gl) { console.warn('ImageDeformPass: no WebGL'); return; }
         this.gl = gl;
 
+        // Detect GPU process crash / context loss and reload the page
+        this.canvas.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            console.error('[ImageDeformPass] WebGL context lost — reloading page');
+            this._ready = false;
+            setTimeout(() => location.reload(), 1500);
+        });
+
         // Compile shaders
         const vs = this._compile(gl.VERTEX_SHADER, `
             precision highp float;

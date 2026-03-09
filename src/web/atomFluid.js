@@ -314,6 +314,14 @@ const AtomFluidEngine = {
         this.gl = gl;
         console.log('[AtomFluidEngine] WebGL' + (this._isWebGL2 ? '2' : '1') + ' context acquired, canvas:', containerW, 'x', containerH);
 
+        // Detect GPU process crash / context loss and reload the page
+        this.canvas.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            console.error('[AtomFluidEngine] WebGL context lost — reloading page');
+            this._noGL = true;
+            setTimeout(() => location.reload(), 1500);
+        });
+
         const isWGL2 = this._isWebGL2;
 
         if (isWGL2) {

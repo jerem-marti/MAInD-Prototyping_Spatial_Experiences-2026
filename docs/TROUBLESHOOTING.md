@@ -46,6 +46,12 @@
 
 ## Web Overlay
 
+### Black screen when signals appear (intermittent)
+- Check Chromium console / stderr for `SharedImageBackingFactory` or `GPU state invalid` errors
+- **Fix:** Launch Chromium with `--disable-gpu-video-decode` (see `scripts/kiosk.sh`)
+- This prevents Chromium from attempting Y_UV 420 shared-image allocations that crash the VideoCore GPU command buffer
+- The app includes automatic WebGL context-loss detection; if the GPU crashes, the page reloads after 1.5 seconds
+
 ### No ghosts displayed
 - Open browser console (F12) for errors
 - Check WebSocket connection status
