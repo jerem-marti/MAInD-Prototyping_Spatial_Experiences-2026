@@ -210,3 +210,46 @@ html, body {
 .hidden {
     display: none !important;
 }
+
+/* ─── Confirm modal ─── */
+
+#confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+#confirm-dialog {
+    background: rgba(20, 20, 24, 0.95);
+    border: 1px solid rgba(100, 98, 96, 0.4);
+    padding: 28px 32px 24px;
+    min-width: 300px;
+    text-align: center;
+}
+
+#confirm-message {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 1px;
+    color: var(--text);
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+#confirm-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+#confirm-actions .gallery-btn {
+    min-width: 100px;
+    padding: 8px 24px;
+    font-size: 11px;
+}

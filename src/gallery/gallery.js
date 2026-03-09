@@ -104,11 +104,36 @@ const Gallery = {
 
     /* -- Delete -- */
 
+    _confirmPromise(message) {
+        return new Promise(function(resolve) {
+            var overlay = document.getElementById('confirm-overlay');
+            var msgEl   = document.getElementById('confirm-message');
+            var btnOk   = document.getElementById('confirm-ok');
+            var btnCancel = document.getElementById('confirm-cancel');
+
+            msgEl.textContent = message;
+            overlay.classList.remove('hidden');
+
+            function cleanup(result) {
+                overlay.classList.add('hidden');
+                btnOk.removeEventListener('click', onOk);
+                btnCancel.removeEventListener('click', onCancel);
+                resolve(result);
+            }
+            function onOk()     { cleanup(true); }
+            function onCancel() { cleanup(false); }
+
+            btnOk.addEventListener('click', onOk);
+            btnCancel.addEventListener('click', onCancel);
+        });
+    },
+
     async deleteCurrent() {
         if (this.snapshots.length === 0) return;
 
         var snap = this.snapshots[this.currentIndex];
-        if (!confirm('Delete ' + snap.name + '?')) return;
+        var confirmed = await this._confirmPromise('Delete ' + snap.name + '?');
+        if (!confirmed) return;
 
         try {
             await fetch('/api/snapshots/' + encodeURIComponent(snap.name), { method: 'DELETE' });

@@ -37,6 +37,17 @@
             <button id="btn-gallery-delete" class="gallery-btn gallery-btn-danger">DELETE</button>
             <span id="gallery-timestamp"></span>
         </footer>
+
+        <!-- Delete confirmation modal -->
+        <div id="confirm-overlay" class="hidden">
+            <div id="confirm-dialog">
+                <p id="confirm-message"></p>
+                <div id="confirm-actions">
+                    <button id="confirm-cancel" class="gallery-btn">CANCEL</button>
+                    <button id="confirm-ok" class="gallery-btn gallery-btn-danger">DELETE</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="gallery.js"></script>
