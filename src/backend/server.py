@@ -338,8 +338,11 @@ async def mjpeg_handler(request):
 def setup_gpio(loop):
     # Store on app_state to prevent garbage collection — gpiozero Button
     # objects deregister GPIO callbacks when GC'd (close() is called).
+    print(f"[GPIO] Setting up buttons on pins {BTN_SNAPSHOT}, {BTN_MODE}", flush=True)
     app_state.btn_snap = Button(BTN_SNAPSHOT, pull_up=True, bounce_time=0.05)
     app_state.btn_mode = Button(BTN_MODE, pull_up=True, bounce_time=0.05)
+    print(f"[GPIO] Button factory: {app_state.btn_snap.pin_factory}", flush=True)
+    print(f"[GPIO] Snap pin: {app_state.btn_snap.pin}, value: {app_state.btn_snap.value}", flush=True)
 
     def on_snap():
         print("[GPIO] Snapshot button pressed!", flush=True)
@@ -351,6 +354,7 @@ def setup_gpio(loop):
 
     app_state.btn_snap.when_pressed = on_snap
     app_state.btn_mode.when_pressed = on_mode
+    print("[GPIO] Callbacks registered OK", flush=True)
 
 async def on_startup(app):
     os.makedirs(SNAP_DIR, exist_ok=True)
