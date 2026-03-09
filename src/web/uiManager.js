@@ -316,6 +316,16 @@ const UIManager = {
             });
         }
 
+        // Gallery toggle button
+        const btnGallery = document.getElementById('btn-gallery');
+        if (btnGallery) {
+            btnGallery.addEventListener('click', () => {
+                if (typeof toggleGallery === 'function') {
+                    toggleGallery();
+                }
+            });
+        }
+
         // Mode switch button
         const btnMode = document.getElementById('btn-mode');
         if (btnMode) {

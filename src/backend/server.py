@@ -5,6 +5,7 @@ import io
 import json
 import math
 import os
+import shutil
 import sys
 import time
 from threading import Condition
@@ -22,6 +23,8 @@ SNAP_DIR = os.environ.get("SNAP_DIR",
            os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'state', 'snapshots'))
 WEB_DIR = os.environ.get("WEB_DIR",
           os.path.expanduser("~/shadow_creatures/web"))
+GALLERY_DIR = os.environ.get("GALLERY_DIR",
+              os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'gallery'))
 
 HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
 BTN_SNAPSHOT = int(os.environ.get("BTN_SNAPSHOT", "12"))   # physical pin 32
@@ -235,6 +238,9 @@ async def ws_handler(request):
             if data.get("type") == "snapshot_request":
                 await app_state.broadcast({"type": "snapshot"})
 
+            if data.get("type") == "gallery_toggle":
+                await app_state.broadcast({"type": "gallery_toggle"})
+
         elif msg.type == WSMsgType.ERROR:
             break
 
@@ -273,6 +279,64 @@ async def upload_snapshot(request):
         json.dump(app_state.last_state or {}, f, ensure_ascii=False)
 
     return web.json_response({"ok": True, "dir": snap_subdir})
+
+# ─── Gallery API + static serving ────────────────────────────────────────────
+
+async def list_snapshots(_request):
+    """Return JSON array of snapshot metadata, sorted newest first."""
+    snapshots = []
+    if not os.path.isdir(SNAP_DIR):
+        return web.json_response(snapshots)
+    for name in sorted(os.listdir(SNAP_DIR), reverse=True):
+        snap_path = os.path.join(SNAP_DIR, name)
+        if not os.path.isdir(snap_path):
+            continue
+        still = os.path.join(snap_path, "still.png")
+        if not os.path.isfile(still):
+            continue
+        snapshots.append({
+            "name": name,
+            "has_live": os.path.isfile(os.path.join(snap_path, "live.webm")),
+            "has_state": os.path.isfile(os.path.join(snap_path, "state.json")),
+            "timestamp": os.path.getmtime(still),
+        })
+    return web.json_response(snapshots)
+
+async def serve_snapshot_file(request):
+    """Serve a file from a snapshot directory (whitelist: still.png, live.webm, state.json)."""
+    name = request.match_info["name"]
+    filename = request.match_info["file"]
+    if filename not in ("still.png", "live.webm", "state.json"):
+        raise web.HTTPForbidden()
+    full = os.path.realpath(os.path.join(SNAP_DIR, name, filename))
+    if not full.startswith(os.path.realpath(SNAP_DIR)):
+        raise web.HTTPForbidden()
+    if not os.path.isfile(full):
+        raise web.HTTPNotFound()
+    return web.FileResponse(full)
+
+async def delete_snapshot(request):
+    """Delete a snapshot directory and all its files."""
+    name = request.match_info["name"]
+    snap_path = os.path.realpath(os.path.join(SNAP_DIR, name))
+    if not snap_path.startswith(os.path.realpath(SNAP_DIR)):
+        raise web.HTTPForbidden()
+    if not os.path.isdir(snap_path):
+        raise web.HTTPNotFound()
+    shutil.rmtree(snap_path)
+    return web.json_response({"ok": True, "deleted": name})
+
+async def gallery_index(_request):
+    return web.FileResponse(os.path.join(GALLERY_DIR, "index.html"))
+
+async def gallery_static(request):
+    path = request.match_info["path"]
+    full = os.path.realpath(os.path.join(GALLERY_DIR, path))
+    if not full.startswith(os.path.realpath(GALLERY_DIR)):
+        raise web.HTTPForbidden()
+    if not os.path.isfile(full):
+        raise web.HTTPNotFound()
+    return web.FileResponse(full)
 
 async def state_watcher():
     while True:
@@ -349,8 +413,7 @@ def setup_gpio(loop):
         asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "snapshot"}), loop)
 
     def on_mode():
-        app_state.mode = (app_state.mode + 1) % 3
-        asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "mode", "mode": app_state.mode}), loop)
+        asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "gallery_toggle"}), loop)
 
     app_state.btn_snap.when_pressed = on_snap
     app_state.btn_mode.when_pressed = on_mode
@@ -414,6 +477,20 @@ def main():
     app.router.add_get("/mjpeg", mjpeg_handler)
     app.router.add_get("/ws", ws_handler)
     app.router.add_post("/api/upload_snapshot", upload_snapshot)
+
+    # Gallery API
+    app.router.add_get("/api/snapshots", list_snapshots)
+    app.router.add_delete("/api/snapshots/{name}", delete_snapshot)
+
+    # Snapshot file serving
+    app.router.add_get("/snapshots/{name}/{file}", serve_snapshot_file)
+
+    # Gallery UI
+    app.router.add_get("/gallery", gallery_index)
+    app.router.add_get("/gallery/", gallery_index)
+    app.router.add_get("/gallery/{path:.*}", gallery_static)
+
+    # Main web app static files (catch-all — must be LAST)
     app.router.add_get("/{path:.*}", static_files)
 
     app.on_startup.append(on_startup)

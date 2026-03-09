@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Creatures — Gallery</title>
+    <link rel="stylesheet" href="gallery.css">
+</head>
+
+<body>
+    <div id="gallery-app">
+        <!-- Top bar -->
+        <header id="gallery-header">
+            <span id="gallery-counter">0 / 0</span>
+            <span id="gallery-title">GALLERY</span>
+            <button id="btn-gallery-close" class="gallery-btn">CLOSE</button>
+        </header>
+
+        <!-- Viewer -->
+        <main id="gallery-viewer">
+            <video id="gallery-video" class="hidden" muted playsinline></video>
+            <img id="gallery-still" alt="Snapshot">
+
+            <!-- Touch zones for prev / next -->
+            <div id="zone-prev" class="touch-zone"></div>
+            <div id="zone-next" class="touch-zone"></div>
+
+            <!-- Empty state -->
+            <div id="gallery-empty" class="hidden">
+                <p>NO SNAPSHOTS</p>
+            </div>
+        </main>
+
+        <!-- Bottom bar -->
+        <footer id="gallery-footer">
+            <button id="btn-gallery-delete" class="gallery-btn gallery-btn-danger">DELETE</button>
+            <span id="gallery-timestamp"></span>
+        </footer>
+    </div>
+
+    <script src="gallery.js"></script>
+</body>
+
+</html>

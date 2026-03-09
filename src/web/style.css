@@ -734,6 +734,41 @@ body {
     transform: scale(0.97);
 }
 
+/* -- Gallery Toggle Button ----------------------------- */
+.gallery-toggle-btn {
+    position: absolute;
+    bottom: calc(var(--status-height) + var(--space-md));
+    right: 140px;
+    padding: var(--space-sm) var(--space-xl);
+    background: rgba(255, 97, 3, 0.15);
+    border: 1px solid var(--accent-signal);
+    color: var(--accent-signal);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 20;
+}
+
+.gallery-toggle-btn:hover {
+    background: rgba(255, 97, 3, 0.25);
+    color: #FEFDFB;
+    border-color: #FF6103;
+}
+
+.gallery-toggle-btn:active {
+    background: rgba(255, 97, 3, 0.35);
+    transform: scale(0.97);
+}
+
+.gallery-toggle-btn.active {
+    background: rgba(255, 97, 3, 0.35);
+    color: #FEFDFB;
+    border-color: #FF6103;
+}
+
 /* -- Checkbox Labels -------------------------------- */
 .checkbox-label {
     display: flex;

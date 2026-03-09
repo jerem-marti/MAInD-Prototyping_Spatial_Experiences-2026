@@ -76,6 +76,63 @@ function setMode(m) {
     if (btnMode) btnMode.textContent = `MODE: ${label}`;
 }
 
+/* -- Gallery Management -- */
+
+let _galleryFrame = null;
+
+function openGallery() {
+    if (State.galleryOpen) return;
+    State.galleryOpen = true;
+    pauseInstrument();
+
+    _galleryFrame = document.createElement('iframe');
+    _galleryFrame.id = 'gallery-frame';
+    _galleryFrame.src = '/gallery/';
+    _galleryFrame.style.cssText =
+        'position:fixed;inset:0;width:100vw;height:100vh;border:none;z-index:1000;background:#0a0a0c;';
+    document.body.appendChild(_galleryFrame);
+
+    const btn = document.getElementById('btn-gallery');
+    if (btn) btn.classList.add('active');
+}
+
+function closeGallery() {
+    if (!State.galleryOpen) return;
+    State.galleryOpen = false;
+
+    if (_galleryFrame) {
+        _galleryFrame.remove();
+        _galleryFrame = null;
+    }
+
+    resumeInstrument();
+
+    const btn = document.getElementById('btn-gallery');
+    if (btn) btn.classList.remove('active');
+}
+
+function toggleGallery() {
+    if (State.galleryOpen) closeGallery();
+    else openGallery();
+}
+
+function pauseInstrument() {
+    State.paused = true;
+    Camera.stop();
+}
+
+function resumeInstrument() {
+    State.paused = false;
+    Camera.start();
+}
+
+// Listen for close messages from gallery iframe
+window.addEventListener('message', function(ev) {
+    if (ev.data && ev.data.type === 'gallery_close') {
+        closeGallery();
+    }
+});
+
 /* -- WebSocket Connection -- */
 
 function connectWebSocket() {
@@ -103,8 +160,13 @@ function connectWebSocket() {
         try {
             const msg = JSON.parse(ev.data);
 
+            if (msg.type === 'gallery_toggle') {
+                toggleGallery();
+                return;
+            }
+
             if (msg.type === 'state') {
-                Telemetry.ingestState(msg.state);
+                if (!State.paused) Telemetry.ingestState(msg.state);
             }
 
             if (msg.type === 'mode') {
@@ -112,7 +174,7 @@ function connectWebSocket() {
             }
 
             if (msg.type === 'snapshot') {
-                await uploadSnapshot();
+                if (!State.paused) await uploadSnapshot();
             }
 
             if (msg.type === 'leds') {
@@ -120,8 +182,7 @@ function connectWebSocket() {
             }
 
             if (msg.type === 'imu') {
-                // Forward IMU orientation data to OrientationManager
-                OrientationManager.onIMUData(msg);
+                if (!State.paused) OrientationManager.onIMUData(msg);
             }
         } catch (e) {
             console.error('[App] WebSocket message error:', e);

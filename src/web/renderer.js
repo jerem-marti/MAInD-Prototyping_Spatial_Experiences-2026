@@ -31,6 +31,8 @@ const Renderer = {
     loop(timestamp) {
         requestAnimationFrame((t) => this.loop(t));
 
+        if (State.paused) return;
+
         const dt = this._lastTime > 0 ? timestamp - this._lastTime : 16;
         this._lastTime = timestamp;
 

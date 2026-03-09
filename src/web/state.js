@@ -17,6 +17,10 @@ const State = {
     useManualParams: false,  // When true, telemetry mapping is skipped
     mode: 2,                 // 0=AP fog, 1=BT sparks, 2=both
 
+    // Gallery
+    galleryOpen: false,      // true when gallery iframe is active
+    paused: false,           // true = render loop and telemetry ingestion paused
+
     // View orientation (degrees) — controlled by OrientationManager
     viewYaw: 0,              // 0-360, horizontal pan on the virtual sphere
     viewPitch: 0,            // -90 to +90, vertical tilt
