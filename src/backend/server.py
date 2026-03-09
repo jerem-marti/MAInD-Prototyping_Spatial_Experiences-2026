@@ -342,6 +342,7 @@ def setup_gpio(loop):
     app_state.btn_mode = Button(BTN_MODE, pull_up=True, bounce_time=0.05)
 
     def on_snap():
+        print("[GPIO] Snapshot button pressed!", flush=True)
         asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "snapshot"}), loop)
 
     def on_mode():
