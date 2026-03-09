@@ -5,6 +5,7 @@ samples/dumps/*
 
 # runtime state
 state/
+state/snapshots/*
 state/*.png
 state/*.jpg
 state/*.jpeg
@@ -39,6 +40,9 @@ npm-debug.log*
 # Build artifacts
 /dist/
 /build/
+
+# Snapshots (Live Photo captures)
+snapshots/
 
 # Claude
 claude-*.log

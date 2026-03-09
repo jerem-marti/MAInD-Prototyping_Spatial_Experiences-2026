@@ -19,7 +19,7 @@ from picamera2.outputs import FileOutput
 STATE_PATH = os.environ.get("GHOST_STATE_PATH",
              os.path.expanduser("~/shadow_creatures/state/ghost_state.json"))
 SNAP_DIR = os.environ.get("SNAP_DIR",
-           os.path.expanduser("~/shadow_creatures/state/snaps"))
+           os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'state', 'snapshots'))
 WEB_DIR = os.environ.get("WEB_DIR",
           os.path.expanduser("~/shadow_creatures/web"))
 
@@ -240,24 +240,37 @@ async def ws_handler(request):
     return ws
 
 async def upload_snapshot(request):
-    os.makedirs(SNAP_DIR, exist_ok=True)
     payload = await request.json()
     data_url = payload.get("data_url", "")
+    live_webm = payload.get("live_webm", "")
+
     if not data_url.startswith("data:image/png;base64,"):
         return web.json_response({"ok": False, "error": "Expected PNG data URL"}, status=400)
 
-    raw = base64.b64decode(data_url.split(",", 1)[1])
+    raw_png = base64.b64decode(data_url.split(",", 1)[1])
 
     ts = time.strftime("%Y%m%d-%H%M%S") + f"-{int(time.time()*1000)%1000:03d}"
-    png_path = os.path.join(SNAP_DIR, f"shadow_{ts}.png")
-    with open(png_path, "wb") as f:
-        f.write(raw)
+    snap_subdir = os.path.join(SNAP_DIR, f"shadow_{ts}")
+    os.makedirs(snap_subdir, exist_ok=True)
 
-    json_path = os.path.join(SNAP_DIR, f"shadow_{ts}.json")
+    # Save still PNG
+    png_path = os.path.join(snap_subdir, "still.png")
+    with open(png_path, "wb") as f:
+        f.write(raw_png)
+
+    # Save Live Photo WebM if present
+    if live_webm and "," in live_webm:
+        raw_webm = base64.b64decode(live_webm.split(",", 1)[1])
+        webm_path = os.path.join(snap_subdir, "live.webm")
+        with open(webm_path, "wb") as f:
+            f.write(raw_webm)
+
+    # Save ghost state JSON
+    json_path = os.path.join(snap_subdir, "state.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(app_state.last_state or {}, f, ensure_ascii=False)
 
-    return web.json_response({"ok": True, "path": png_path})
+    return web.json_response({"ok": True, "dir": snap_subdir})
 
 async def state_watcher():
     while True:
@@ -380,7 +393,7 @@ async def on_cleanup(app):
         pass
 
 def main():
-    app = web.Application()
+    app = web.Application(client_max_size=10 * 1024 * 1024)  # 10 MB for Live Photo uploads
     app.router.add_get("/", index)
     app.router.add_get("/mjpeg", mjpeg_handler)
     app.router.add_get("/ws", ws_handler)

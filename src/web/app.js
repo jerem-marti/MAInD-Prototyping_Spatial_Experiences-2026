@@ -29,15 +29,39 @@ function captureSnapshotDataURL() {
     return exportCanvas.toDataURL('image/png');
 }
 
+function _blobToBase64(blob) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+    });
+}
+
 async function uploadSnapshot() {
     try {
+        // 1. Trigger Live Photo post-capture recording (collects 1.5s more)
+        const livePromise = LivePhotoCapture.trigger();
+
+        // 2. Capture still frame immediately
         const data_url = captureSnapshotDataURL();
+
+        // 3. Wait for Live Photo video to finish
+        const liveBlob = await livePromise;
+
+        // 4. Build payload
+        const payload = { data_url };
+        if (liveBlob) {
+            payload.live_webm = await _blobToBase64(liveBlob);
+        }
+
+        // 5. Upload
         await fetch('/api/upload_snapshot', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data_url })
+            body: JSON.stringify(payload)
         });
-        console.log('[App] Snapshot uploaded');
+
+        console.log('[App] Snapshot uploaded' + (liveBlob ? ' (with Live Photo)' : ''));
     } catch (e) {
         console.error('[App] Snapshot upload failed:', e);
     }
@@ -129,6 +153,9 @@ function initApp() {
     // Init renderer and start render loop
     Renderer.init();
     requestAnimationFrame((t) => Renderer.loop(t));
+
+    // Init Live Photo capture (rolling video buffer from main canvas)
+    LivePhotoCapture.init(UI.canvas);
 
     // Connect to backend WebSocket
     connectWebSocket();
