@@ -41,9 +41,6 @@ npm-debug.log*
 /dist/
 /build/
 
-# Snapshots (Live Photo captures)
-snapshots/
-
 # Claude
 claude-*.log
 tmpclaude-*

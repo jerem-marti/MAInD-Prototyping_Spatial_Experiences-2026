@@ -24,8 +24,8 @@ WEB_DIR = os.environ.get("WEB_DIR",
           os.path.expanduser("~/shadow_creatures/web"))
 
 HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
-BTN_SNAPSHOT = int(os.environ.get("BTN_SNAPSHOT", "17"))
-BTN_MODE = int(os.environ.get("BTN_MODE", "27"))
+BTN_SNAPSHOT = int(os.environ.get("BTN_SNAPSHOT", "12"))   # physical pin 32
+BTN_MODE = int(os.environ.get("BTN_MODE", "26"))           # physical pin 37
 LED_POWER = int(os.environ.get("LED_POWER", "0"))
 LED_SENSE = int(os.environ.get("LED_SENSE", "6"))
 

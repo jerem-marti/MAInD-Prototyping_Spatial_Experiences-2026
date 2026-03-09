@@ -1,29 +1,28 @@
 /**
  * GHOST SIGNAL INSTRUMENT — Shadow Creatures
- * LivePhotoCapture: records a rolling video buffer from the main canvas
+ * LivePhotoCapture: records a rolling video from the main canvas
  * to produce iPhone-like Live Photos (short video clip + still).
  *
- * Uses MediaRecorder + canvas.captureStream() to maintain a ring buffer
- * of recent video chunks. On snapshot trigger, it collects additional
- * post-capture frames and assembles the full ~3 second WebM clip.
+ * Strategy: record in continuous ~3.5 second segments using
+ * MediaRecorder start()/stop() cycles. Each segment produces a
+ * complete, valid WebM file (no cluster splicing needed).
+ *
+ * On snapshot trigger, the current segment keeps recording for an
+ * extra POST_MS (1.5s), then stops. The resulting blob is the
+ * Live Photo video covering up to ~5 seconds of footage.
  */
 
 const LivePhotoCapture = {
     _stream: null,
     _recorder: null,
-    _headerChunk: null,     // WebM initialization segment (first chunk from MediaRecorder)
-    _ring: [],              // circular buffer of recent media data chunks
-    _ringTimestamps: [],    // timestamp for each chunk in ring
-    _capturing: false,
-    _afterChunks: [],       // chunks collected after trigger
-    _captureStartTime: 0,
-    _captureResolve: null,
-    _safetyTimer: null,
+    _chunks: [],            // data chunks for the current segment
     _ready: false,
+    _capturing: false,
+    _cycleTimer: null,
+    _mimeType: '',
 
-    PRE_MS: 2000,           // keep 2 seconds of pre-capture buffer
+    CYCLE_MS: 3500,         // restart recording every 3.5 seconds
     POST_MS: 1500,          // record 1.5 seconds after trigger
-    SLICE_MS: 200,          // chunk interval (200ms = 5 chunks/sec)
     FPS: 30,                // capture stream frame rate
 
     init(canvas) {
@@ -57,8 +56,27 @@ const LivePhotoCapture = {
 
         try {
             this._stream = canvas.captureStream(this.FPS);
+        } catch (e) {
+            console.warn('[LivePhoto] Failed to capture stream:', e);
+            return;
+        }
+
+        this._mimeType = mimeType;
+        this._beginSegment();
+        this._ready = true;
+        console.log(`[LivePhoto] Started (${mimeType}, ${this.FPS}fps, ${this.CYCLE_MS}ms segments)`);
+    },
+
+    /**
+     * Start a new recording segment. Each segment is a complete
+     * WebM file from start() to stop() — no splicing needed.
+     */
+    _beginSegment() {
+        this._chunks = [];
+
+        try {
             this._recorder = new MediaRecorder(this._stream, {
-                mimeType,
+                mimeType: this._mimeType,
                 videoBitsPerSecond: 2500000  // 2.5 Mbps
             });
         } catch (e) {
@@ -67,94 +85,77 @@ const LivePhotoCapture = {
         }
 
         this._recorder.ondataavailable = (e) => {
-            if (!e.data || !e.data.size) return;
-            const now = Date.now();
-
-            // First chunk contains the WebM header / initialization segment
-            if (!this._headerChunk) {
-                this._headerChunk = e.data;
-                return;
-            }
-
-            // Post-capture mode: collect after-chunks until POST_MS elapsed
-            if (this._capturing) {
-                this._afterChunks.push(e.data);
-                if (now - this._captureStartTime >= this.POST_MS) {
-                    this._finalize();
-                }
-                return;
-            }
-
-            // Normal mode: push to ring buffer
-            this._ring.push(e.data);
-            this._ringTimestamps.push(now);
-
-            // Trim chunks older than PRE_MS
-            const cutoff = now - this.PRE_MS;
-            while (this._ringTimestamps.length > 0 && this._ringTimestamps[0] < cutoff) {
-                this._ring.shift();
-                this._ringTimestamps.shift();
-            }
+            if (e.data && e.data.size) this._chunks.push(e.data);
         };
 
-        this._recorder.start(this.SLICE_MS);
-        this._ready = true;
-        console.log(`[LivePhoto] Recording started (${mimeType}, ${this.FPS}fps, ${this.SLICE_MS}ms slices)`);
+        this._recorder.start();
+        this._scheduleCycle();
+    },
+
+    /**
+     * Schedule the next segment restart.
+     */
+    _scheduleCycle() {
+        this._cycleTimer = setTimeout(() => this._restartSegment(), this.CYCLE_MS);
+    },
+
+    /**
+     * Stop current segment and immediately begin a new one.
+     * Keeps memory bounded by discarding old footage.
+     */
+    _restartSegment() {
+        if (this._capturing) return;
+        if (!this._recorder || this._recorder.state !== 'recording') return;
+
+        const oldRecorder = this._recorder;
+        oldRecorder.onstop = () => {
+            // Old segment discarded — we only care about the current one at trigger time
+            this._beginSegment();
+        };
+        oldRecorder.stop();
     },
 
     /**
      * Trigger a Live Photo capture.
-     * Returns a Promise that resolves with a WebM Blob (~3 seconds),
-     * or null if Live Photo is not available.
+     *
+     * Keeps the current recording running for POST_MS more seconds,
+     * then stops and returns the complete WebM blob.
+     *
+     * The resulting video covers: (time since last segment restart) + POST_MS.
+     * Typical duration: 2–5 seconds depending on timing.
+     *
+     * @returns {Promise<Blob|null>} WebM blob, or null if unavailable.
      */
     trigger() {
-        if (!this._ready || !this._recorder || this._capturing) {
+        if (!this._ready || this._capturing) {
+            return Promise.resolve(null);
+        }
+        if (!this._recorder || this._recorder.state !== 'recording') {
             return Promise.resolve(null);
         }
 
+        this._capturing = true;
+        clearTimeout(this._cycleTimer);
+
         return new Promise((resolve) => {
-            this._capturing = true;
-            this._captureStartTime = Date.now();
-            this._afterChunks = [];
-            this._captureResolve = resolve;
-
-            // Safety timeout in case ondataavailable stops firing
-            this._safetyTimer = setTimeout(() => {
-                if (this._capturing) {
-                    this._finalize();
+            // Keep recording for POST_MS, then stop to finalize the WebM
+            setTimeout(() => {
+                if (!this._recorder || this._recorder.state !== 'recording') {
+                    this._capturing = false;
+                    this._beginSegment();
+                    resolve(null);
+                    return;
                 }
-            }, this.POST_MS + 500);
+
+                this._recorder.onstop = () => {
+                    const blob = new Blob(this._chunks, { type: this._mimeType });
+                    this._capturing = false;
+                    // Restart segment cycle for next capture
+                    this._beginSegment();
+                    resolve(blob);
+                };
+                this._recorder.stop();
+            }, this.POST_MS);
         });
-    },
-
-    _finalize() {
-        this._capturing = false;
-
-        if (this._safetyTimer) {
-            clearTimeout(this._safetyTimer);
-            this._safetyTimer = null;
-        }
-
-        if (!this._headerChunk) {
-            if (this._captureResolve) {
-                this._captureResolve(null);
-                this._captureResolve = null;
-            }
-            return;
-        }
-
-        // Assemble: header + pre-capture ring buffer + post-capture chunks
-        const allChunks = [this._headerChunk, ...this._ring, ...this._afterChunks];
-        const blob = new Blob(allChunks, { type: this._recorder.mimeType });
-
-        if (this._captureResolve) {
-            this._captureResolve(blob);
-            this._captureResolve = null;
-        }
-
-        // Clear ring buffer so the next Live Photo starts fresh
-        this._ring = [];
-        this._ringTimestamps = [];
-        this._afterChunks = [];
     }
 };
