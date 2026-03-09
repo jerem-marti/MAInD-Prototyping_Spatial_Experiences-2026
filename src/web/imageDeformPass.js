@@ -192,11 +192,6 @@ const ImageDeformPass = {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
-        // Force GPU to finish before the canvas is read by drawImage().
-        // Required when captureStream() is active on the destination canvas,
-        // otherwise the browser may read the WebGL buffer before writes complete.
-        gl.finish();
-
         return this.canvas;
     },
 
