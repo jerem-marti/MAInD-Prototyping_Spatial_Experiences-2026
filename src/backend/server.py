@@ -64,6 +64,8 @@ class AppState:
         self.last_mtime = 0.0
         self.led_power: Optional[LED] = None
         self.led_sense: Optional[LED] = None
+        self.btn_snap: Optional[Button] = None
+        self.btn_mode: Optional[Button] = None
         self.power_on = False
         self.sense_on = False
 
@@ -334,8 +336,10 @@ async def mjpeg_handler(request):
     return resp
 
 def setup_gpio(loop):
-    btn_snap = Button(BTN_SNAPSHOT, pull_up=True, bounce_time=0.05)
-    btn_mode = Button(BTN_MODE, pull_up=True, bounce_time=0.05)
+    # Store on app_state to prevent garbage collection — gpiozero Button
+    # objects deregister GPIO callbacks when GC'd (close() is called).
+    app_state.btn_snap = Button(BTN_SNAPSHOT, pull_up=True, bounce_time=0.05)
+    app_state.btn_mode = Button(BTN_MODE, pull_up=True, bounce_time=0.05)
 
     def on_snap():
         asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "snapshot"}), loop)
@@ -344,8 +348,8 @@ def setup_gpio(loop):
         app_state.mode = (app_state.mode + 1) % 3
         asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "mode", "mode": app_state.mode}), loop)
 
-    btn_snap.when_pressed = on_snap
-    btn_mode.when_pressed = on_mode
+    app_state.btn_snap.when_pressed = on_snap
+    app_state.btn_mode.when_pressed = on_mode
 
 async def on_startup(app):
     os.makedirs(SNAP_DIR, exist_ok=True)
@@ -389,6 +393,13 @@ async def on_cleanup(app):
             app_state.led_sense.off()
         if app_state.led_power:
             app_state.led_power.off()
+    except Exception:
+        pass
+    try:
+        if app_state.btn_snap:
+            app_state.btn_snap.close()
+        if app_state.btn_mode:
+            app_state.btn_mode.close()
     except Exception:
         pass
 

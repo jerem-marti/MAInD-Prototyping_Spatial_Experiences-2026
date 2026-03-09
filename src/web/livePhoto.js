@@ -21,7 +21,7 @@ const LivePhotoCapture = {
     _cycleTimer: null,
     _mimeType: '',
 
-    CYCLE_MS: 3500,         // restart recording every 3.5 seconds
+    CYCLE_MS: 1500,         // restart recording every 1.5 seconds
     POST_MS: 1500,          // record 1.5 seconds after trigger
     FPS: 30,                // capture stream frame rate
 
