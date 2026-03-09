@@ -1256,6 +1256,11 @@ const AtomFluidEngine = {
         gl.uniform1i(dp.uniforms.uTexture, this._density.first[2]);
         this._blit(null);
 
+        // Force GPU to finish before the canvas is read by drawImage().
+        // Required when captureStream() is active on the destination canvas,
+        // otherwise the browser may read the WebGL buffer before writes complete.
+        gl.finish();
+
         // ── Periodic density sample for debug HUD (every 60 frames) ──────────
         // Reads one pixel from the center of the density FBO. Non-zero means
         // splats are actually accumulating; zero means writes are broken.
