@@ -266,6 +266,10 @@ const Renderer = {
 
         // Debug HUD
         DebugMode.renderHUD(ctx, canvas, State.signals);
+
+        // Notify LivePhotoCapture that a complete frame is ready.
+        // Must be called after all compositing (including WebGL drawImage).
+        LivePhotoCapture.requestFrame();
     },
 
     capture() {

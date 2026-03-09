@@ -3,17 +3,22 @@
  * LivePhotoCapture: records a rolling video from the main canvas
  * to produce iPhone-like Live Photos (short video clip + still).
  *
- * Strategy: record in continuous ~3.5 second segments using
+ * Strategy: record in continuous ~1.5 second segments using
  * MediaRecorder start()/stop() cycles. Each segment produces a
  * complete, valid WebM file (no cluster splicing needed).
  *
+ * Uses captureStream(0) — manual frame mode — so frames are only
+ * captured when requestFrame() is called by the render loop.
+ * This avoids interference with WebGL→2D canvas drawImage compositing.
+ *
  * On snapshot trigger, the current segment keeps recording for an
  * extra POST_MS (1.5s), then stops. The resulting blob is the
- * Live Photo video covering up to ~5 seconds of footage.
+ * Live Photo video covering up to ~3 seconds of footage.
  */
 
 const LivePhotoCapture = {
     _stream: null,
+    _track: null,
     _recorder: null,
     _chunks: [],            // data chunks for the current segment
     _ready: false,
@@ -23,7 +28,6 @@ const LivePhotoCapture = {
 
     CYCLE_MS: 1500,         // restart recording every 1.5 seconds
     POST_MS: 1500,          // record 1.5 seconds after trigger
-    FPS: 30,                // capture stream frame rate
 
     init(canvas) {
         if (!canvas || typeof canvas.captureStream !== 'function') {
@@ -55,16 +59,35 @@ const LivePhotoCapture = {
         }
 
         try {
-            this._stream = canvas.captureStream(this.FPS);
+            // Use captureStream(0) — manual frame mode.
+            // Frames are only captured when requestFrame() is called,
+            // preventing captureStream from reading the canvas mid-compositing.
+            this._stream = canvas.captureStream(0);
         } catch (e) {
             console.warn('[LivePhoto] Failed to capture stream:', e);
             return;
         }
 
+        // Get the video track for manual frame requests
+        const tracks = this._stream.getVideoTracks();
+        this._track = tracks.length > 0 ? tracks[0] : null;
+
         this._mimeType = mimeType;
         this._beginSegment();
         this._ready = true;
-        console.log(`[LivePhoto] Started (${mimeType}, ${this.FPS}fps, ${this.CYCLE_MS}ms segments)`);
+        console.log(`[LivePhoto] Started (${mimeType}, manual frame mode, ${this.CYCLE_MS}ms segments)`);
+    },
+
+    /**
+     * Request a new frame be captured into the stream.
+     * Call this at the end of each render loop iteration,
+     * after all compositing (including WebGL drawImage) is complete.
+     */
+    requestFrame() {
+        if (!this._track || !this._ready) return;
+        if (typeof this._track.requestFrame === 'function') {
+            this._track.requestFrame();
+        }
     },
 
     /**
@@ -122,7 +145,7 @@ const LivePhotoCapture = {
      * then stops and returns the complete WebM blob.
      *
      * The resulting video covers: (time since last segment restart) + POST_MS.
-     * Typical duration: 2–5 seconds depending on timing.
+     * Typical duration: 2–3 seconds depending on timing.
      *
      * @returns {Promise<Blob|null>} WebM blob, or null if unavailable.
      */
