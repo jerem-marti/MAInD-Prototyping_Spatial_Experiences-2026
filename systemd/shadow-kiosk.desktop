@@ -2,7 +2,7 @@
 Type=Application
 Name=Shadow Creatures Kiosk
 Comment=Launch Chromium kiosk for Shadow Creatures overlay
-Exec=/home/jermarti/maind-deploy/scripts/kiosk.sh http://localhost:8080
+Exec=__DEPLOY_DIR__/scripts/kiosk.sh http://localhost:8080
 X-GNOME-Autostart-Phase=Application
 X-GNOME-Autostart-Delay=5
 Hidden=false
