@@ -6,13 +6,14 @@ import json
 import math
 import os
 import shutil
+import signal
 import sys
 import time
 from threading import Condition
 from typing import Optional, Set
 
 from aiohttp import web, WSMsgType
-from gpiozero import Button, LED
+from gpiozero import Button, LED, PWMLED
 from picamera2 import Picamera2
 from picamera2.encoders import MJPEGEncoder
 from picamera2.outputs import FileOutput
@@ -66,11 +67,12 @@ class AppState:
         self.last_state = {}
         self.last_mtime = 0.0
         self.led_power: Optional[LED] = None
-        self.led_sense: Optional[LED] = None
+        self.led_sense: Optional[PWMLED] = None
         self.btn_snap: Optional[Button] = None
         self.btn_mode: Optional[Button] = None
         self.power_on = False
         self.sense_on = False
+        self.sense_device_count = 0
 
     async def broadcast(self, payload: dict):
         dead = []
@@ -338,6 +340,25 @@ async def gallery_static(request):
         raise web.HTTPNotFound()
     return web.FileResponse(full)
 
+def _pulse_speed(device_count: int) -> tuple:
+    """Map device count to (fade_in_time, fade_out_time) for PWMLED.pulse().
+    More devices → faster breathing.
+      0 devices  → LED off (handled by caller)
+      1-3        → slow breath (1.5s in, 1.5s out)
+      4-10       → medium (0.8s in, 0.8s out)
+      11-25      → fast (0.4s in, 0.4s out)
+      26+        → rapid (0.2s in, 0.2s out)
+    """
+    if device_count <= 3:
+        return (1.5, 1.5)
+    elif device_count <= 10:
+        return (0.8, 0.8)
+    elif device_count <= 25:
+        return (0.4, 0.4)
+    else:
+        return (0.2, 0.2)
+
+
 async def state_watcher():
     while True:
         try:
@@ -348,18 +369,29 @@ async def state_watcher():
                     app_state.last_state = json.load(f)
                 await app_state.broadcast({"type": "state", "state": app_state.last_state})
 
-                has_devices = bool(
-                    app_state.last_state.get("wifi", {}).get("aps")
-                    or app_state.last_state.get("wifi", {}).get("clients")
-                    or app_state.last_state.get("bt", {}).get("devices")
-                )
-                if has_devices and not app_state.sense_on:
-                    app_state.led_sense.on()
+                aps = app_state.last_state.get("wifi", {}).get("aps") or []
+                clients = app_state.last_state.get("wifi", {}).get("clients") or []
+                bt_devs = app_state.last_state.get("bt", {}).get("devices") or []
+                device_count = len(aps) + len(clients) + len(bt_devs)
+
+                if device_count > 0 and not app_state.sense_on:
+                    # Start pulsing
+                    fade_in, fade_out = _pulse_speed(device_count)
+                    app_state.led_sense.pulse(fade_in_time=fade_in, fade_out_time=fade_out)
                     app_state.sense_on = True
+                    app_state.sense_device_count = device_count
                     await app_state.broadcast({"type": "leds", "power": app_state.power_on, "sense": app_state.sense_on})
-                elif not has_devices and app_state.sense_on:
+                elif device_count > 0 and app_state.sense_on and device_count != app_state.sense_device_count:
+                    # Adjust pulse speed when device count changes tier
+                    old_speed = _pulse_speed(app_state.sense_device_count)
+                    new_speed = _pulse_speed(device_count)
+                    if old_speed != new_speed:
+                        app_state.led_sense.pulse(fade_in_time=new_speed[0], fade_out_time=new_speed[1])
+                    app_state.sense_device_count = device_count
+                elif device_count == 0 and app_state.sense_on:
                     app_state.led_sense.off()
                     app_state.sense_on = False
+                    app_state.sense_device_count = 0
                     await app_state.broadcast({"type": "leds", "power": app_state.power_on, "sense": app_state.sense_on})
         except FileNotFoundError:
             pass
@@ -439,9 +471,23 @@ async def on_startup(app):
     setup_gpio(asyncio.get_running_loop())
 
     app_state.led_power = LED(LED_POWER)
-    app_state.led_sense = LED(LED_SENSE)
+    app_state.led_sense = PWMLED(LED_SENSE)
     app_state.led_power.on()
     app_state.power_on = True
+
+    # Ensure LEDs turn off on SIGTERM (systemd sends this before SIGKILL on shutdown)
+    def _shutdown_leds(signum, frame):
+        try:
+            if app_state.led_sense:
+                app_state.led_sense.off()
+            if app_state.led_power:
+                app_state.led_power.off()
+        except Exception:
+            pass
+        # Re-raise so aiohttp's own handler still runs
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, _shutdown_leds)
 
 async def on_cleanup(app):
     try:
@@ -460,8 +506,10 @@ async def on_cleanup(app):
     try:
         if app_state.led_sense:
             app_state.led_sense.off()
+            app_state.led_sense.close()
         if app_state.led_power:
             app_state.led_power.off()
+            app_state.led_power.close()
     except Exception:
         pass
     try:

@@ -11,7 +11,7 @@ Optionally override pins via env:
 import os
 import time
 
-from gpiozero import LED
+from gpiozero import LED, PWMLED
 
 LED_POWER_PIN = int(os.environ.get("LED_POWER", "0"))
 LED_SENSE_PIN = int(os.environ.get("LED_SENSE", "6"))
@@ -37,9 +37,9 @@ def section(title: str):
     print(f"{'='*50}")
 
 
-def claim_led(pin: int) -> LED:
+def claim_led(pin: int, pwm: bool = False):
     try:
-        return LED(pin)
+        return PWMLED(pin) if pwm else LED(pin)
     except Exception as e:
         if "busy" in str(e).lower():
             print(f"\nERROR: GPIO {pin} is busy — shadow-backend is likely running.")
@@ -52,29 +52,44 @@ def claim_led(pin: int) -> LED:
 
 def main():
     print(f"Shadow Creatures — LED test")
-    print(f"  Power LED  → GPIO {LED_POWER_PIN}")
-    print(f"  Sense LED  → GPIO {LED_SENSE_PIN}")
+    print(f"  Power LED  → GPIO {LED_POWER_PIN} (digital)")
+    print(f"  Sense LED  → GPIO {LED_SENSE_PIN} (PWM)")
 
     led_power = claim_led(LED_POWER_PIN)
-    led_sense = claim_led(LED_SENSE_PIN)
+    led_sense = claim_led(LED_SENSE_PIN, pwm=True)
 
     try:
         # 1. Power LED alone
-        section(f"1 / 3  Power LED (GPIO {LED_POWER_PIN})")
+        section(f"1 / 4  Power LED (GPIO {LED_POWER_PIN})")
         print(f"  Watch GPIO {LED_POWER_PIN} — should blink {BLINKS} times.")
         blink(led_power, f"PWR GPIO{LED_POWER_PIN}")
 
         time.sleep(0.5)
 
-        # 2. Sense LED alone
-        section(f"2 / 3  Sense LED (GPIO {LED_SENSE_PIN})")
+        # 2. Sense LED alone (blink)
+        section(f"2 / 4  Sense LED blink (GPIO {LED_SENSE_PIN})")
         print(f"  Watch GPIO {LED_SENSE_PIN} — should blink {BLINKS} times.")
         blink(led_sense, f"SNS GPIO{LED_SENSE_PIN}")
 
         time.sleep(0.5)
 
-        # 3. Both together
-        section("3 / 3  Both LEDs simultaneously")
+        # 3. Sense LED pulse test (breathing)
+        section(f"3 / 4  Sense LED pulse (GPIO {LED_SENSE_PIN})")
+        print("  Slow breathing (1.5s cycle) for 4 seconds...")
+        led_sense.pulse(fade_in_time=1.5, fade_out_time=1.5)
+        time.sleep(4)
+        print("  Fast breathing (0.4s cycle) for 3 seconds...")
+        led_sense.pulse(fade_in_time=0.4, fade_out_time=0.4)
+        time.sleep(3)
+        print("  Rapid breathing (0.2s cycle) for 2 seconds...")
+        led_sense.pulse(fade_in_time=0.2, fade_out_time=0.2)
+        time.sleep(2)
+        led_sense.off()
+
+        time.sleep(0.5)
+
+        # 4. Both together
+        section("4 / 4  Both LEDs simultaneously")
         print(f"  Both GPIOs should blink together {BLINKS} times.")
         for i in range(BLINKS):
             led_power.on()
