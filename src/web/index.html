@@ -163,6 +163,18 @@
             <!-- Hidden MJPEG feed image (used as texture source) -->
             <img id="feed" style="display:none" crossorigin="anonymous">
             <div id="version-tag">vAtom</div>
+            <!-- Battery indicator (top-right) -->
+            <div id="battery-indicator">
+                <svg id="battery-icon" viewBox="0 0 24 12" width="24" height="12">
+                    <rect x="0.5" y="0.5" width="20" height="11" rx="1.5" ry="1.5"
+                          fill="none" stroke="currentColor" stroke-width="1"/>
+                    <rect x="21" y="3" width="2.5" height="5" rx="0.8" ry="0.8"
+                          fill="currentColor"/>
+                    <rect id="battery-fill" x="2" y="2" width="17" height="7" rx="0.5" ry="0.5"
+                          fill="currentColor"/>
+                </svg>
+                <span id="battery-pct">--%</span>
+            </div>
             <!-- Bottom action bar -->
             <div id="action-bar">
                 <button id="btn-sidebar-toggle" class="action-btn">PANEL</button>

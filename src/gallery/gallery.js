@@ -202,8 +202,33 @@ const Gallery = {
             else if (e.key === 'Escape') self.close();
         });
 
+        // Battery updates from parent frame
+        window.addEventListener('message', function(ev) {
+            if (ev.data && ev.data.type === 'battery') {
+                self._updateBattery(ev.data.soc);
+            }
+        });
+
         // Swipe gestures
         this._initSwipe();
+    },
+
+    _updateBattery(soc) {
+        var el = document.getElementById('battery-indicator');
+        var fill = document.getElementById('battery-fill');
+        var pctEl = document.getElementById('battery-pct');
+        if (!el || !fill || !pctEl) return;
+
+        var pct = Math.max(0, Math.min(100, Math.round(soc)));
+        pctEl.textContent = pct + '%';
+        fill.setAttribute('width', String((pct / 100) * 17));
+
+        el.classList.remove('bat-low', 'bat-mid', 'bat-ok');
+        if (pct <= 15) el.classList.add('bat-low');
+        else if (pct <= 35) el.classList.add('bat-mid');
+        else el.classList.add('bat-ok');
+
+        el.classList.add('visible');
     },
 
     _initSwipe() {

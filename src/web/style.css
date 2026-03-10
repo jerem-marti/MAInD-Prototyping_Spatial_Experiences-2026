@@ -635,6 +635,49 @@ body {
     z-index: 10;
 }
 
+/* -- Battery Indicator ------------------------------ */
+#battery-indicator {
+    position: absolute;
+    top: var(--space-md);
+    right: var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-tertiary);
+    pointer-events: none;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+#battery-indicator.visible {
+    opacity: 1;
+}
+
+#battery-icon {
+    flex-shrink: 0;
+}
+
+#battery-pct {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    font-variant-numeric: tabular-nums;
+}
+
+#battery-indicator.bat-low {
+    color: var(--accent-danger);
+}
+
+#battery-indicator.bat-mid {
+    color: var(--accent-signal);
+}
+
+#battery-indicator.bat-ok {
+    color: var(--text-tertiary);
+}
+
 /* -- Status Bar ------------------------------------- */
 #status-bar {
     height: var(--status-height);

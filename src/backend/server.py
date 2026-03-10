@@ -38,6 +38,11 @@ IMU_BUS = int(os.environ.get("IMU_BUS", "1"))
 IMU_ADDR = int(os.environ.get("IMU_ADDR", "0x6A"), 0)
 IMU_RATE_HZ = int(os.environ.get("IMU_RATE_HZ", "50"))  # broadcast rate
 
+# --- Battery fuel gauge (MAX17040) configuration ---
+BAT_BUS = int(os.environ.get("BAT_BUS", "1"))
+BAT_ADDR = int(os.environ.get("BAT_ADDR", "0x36"), 0)
+BAT_RATE_HZ = float(os.environ.get("BAT_RATE_HZ", "0.2"))  # every 5 seconds
+
 
 class StreamingOutput(io.BufferedIOBase):
     """
@@ -199,6 +204,59 @@ async def imu_broadcaster():
         pass
     finally:
         gen.close()   # signal generator to stop before closing the bus
+        bus.close()
+
+
+# ─── Battery fuel gauge (MAX17040) ────────────────────────────────────────────
+
+def _bat_read(bus):
+    """Read battery voltage (V) and state-of-charge (%) from MAX17040."""
+    raw_v = bus.read_i2c_block_data(BAT_ADDR, 0x02, 2)
+    raw_soc = bus.read_i2c_block_data(BAT_ADDR, 0x04, 2)
+    voltage = ((raw_v[0] << 4) | (raw_v[1] >> 4)) * 1.25 / 1000.0  # mV -> V
+    soc = raw_soc[0] + raw_soc[1] / 256.0  # integer + fractional %
+    return round(voltage, 3), round(soc, 1)
+
+
+async def battery_broadcaster():
+    """
+    Async coroutine: reads battery fuel gauge at BAT_RATE_HZ, broadcasts
+    voltage and SOC to all WebSocket clients.
+    """
+    try:
+        from smbus2 import SMBus
+    except ImportError:
+        print("[BAT] smbus2 not available — battery monitor disabled", file=sys.stderr)
+        return
+
+    bus = None
+    try:
+        bus = SMBus(BAT_BUS)
+        # Quick probe — read version register (0x08)
+        ver = bus.read_i2c_block_data(BAT_ADDR, 0x08, 2)
+        print(f"[BAT] MAX17040 detected: version=0x{ver[0]:02X}{ver[1]:02X} on bus {BAT_BUS}, addr 0x{BAT_ADDR:02X}")
+    except Exception as e:
+        print(f"[BAT] Fuel gauge not found ({e}) — battery monitor disabled", file=sys.stderr)
+        if bus:
+            bus.close()
+        return
+
+    interval = 1.0 / BAT_RATE_HZ
+
+    try:
+        while True:
+            try:
+                voltage, soc = await asyncio.to_thread(_bat_read, bus)
+            except Exception as e:
+                print(f"[BAT] Read error (will retry): {e}", file=sys.stderr)
+                await asyncio.sleep(interval)
+                continue
+            payload = {"type": "battery", "voltage": voltage, "soc": soc}
+            await app_state.broadcast(payload)
+            await asyncio.sleep(interval)
+    except asyncio.CancelledError:
+        pass
+    finally:
         bus.close()
 
 
@@ -468,6 +526,7 @@ async def on_startup(app):
 
     app["watcher_task"] = asyncio.create_task(state_watcher())
     app["imu_task"] = asyncio.create_task(imu_broadcaster())
+    app["bat_task"] = asyncio.create_task(battery_broadcaster())
     setup_gpio(asyncio.get_running_loop())
 
     app_state.led_power = LED(LED_POWER)
@@ -496,6 +555,10 @@ async def on_cleanup(app):
         pass
     try:
         app["imu_task"].cancel()
+    except Exception:
+        pass
+    try:
+        app["bat_task"].cancel()
     except Exception:
         pass
     try:

@@ -152,6 +152,29 @@ function dismissSplash() {
     splash.addEventListener('transitionend', () => splash.remove(), { once: true });
 }
 
+/* -- Battery Indicator -- */
+
+function _updateBattery(soc) {
+    const el = document.getElementById('battery-indicator');
+    const fill = document.getElementById('battery-fill');
+    const pctEl = document.getElementById('battery-pct');
+    if (!el || !fill || !pctEl) return;
+
+    const pct = Math.max(0, Math.min(100, Math.round(soc)));
+    pctEl.textContent = pct + '%';
+
+    // Scale fill bar width: 0% -> 0, 100% -> 17 (full inner rect)
+    fill.setAttribute('width', String((pct / 100) * 17));
+
+    // Color class based on level
+    el.classList.remove('bat-low', 'bat-mid', 'bat-ok');
+    if (pct <= 15) el.classList.add('bat-low');
+    else if (pct <= 35) el.classList.add('bat-mid');
+    else el.classList.add('bat-ok');
+
+    el.classList.add('visible');
+}
+
 /* -- WebSocket Connection -- */
 
 function connectWebSocket() {
@@ -203,6 +226,16 @@ function connectWebSocket() {
 
             if (msg.type === 'imu') {
                 if (!State.paused) OrientationManager.onIMUData(msg);
+            }
+
+            if (msg.type === 'battery') {
+                _updateBattery(msg.soc);
+                // Forward to gallery iframe if open
+                if (_galleryFrame && _galleryFrame.contentWindow) {
+                    _galleryFrame.contentWindow.postMessage(
+                        { type: 'battery', soc: msg.soc }, '*'
+                    );
+                }
             }
         } catch (e) {
             console.error('[App] WebSocket message error:', e);

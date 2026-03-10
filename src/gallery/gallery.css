@@ -101,6 +101,53 @@ html, body {
     opacity: 0.8;
 }
 
+/* ─── Header right group ─── */
+
+#gallery-header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+/* ─── Battery indicator ─── */
+
+#battery-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+#battery-indicator.visible {
+    opacity: 1;
+}
+
+#battery-icon {
+    flex-shrink: 0;
+}
+
+#battery-pct {
+    font-family: var(--font-ui);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    font-variant-numeric: tabular-nums;
+}
+
+#battery-indicator.bat-low {
+    color: #cc3333;
+}
+
+#battery-indicator.bat-mid {
+    color: var(--accent);
+}
+
+#battery-indicator.bat-ok {
+    color: var(--text-dim);
+}
+
 #gallery-timestamp {
     font-family: var(--font-ui);
     font-size: 10px;
