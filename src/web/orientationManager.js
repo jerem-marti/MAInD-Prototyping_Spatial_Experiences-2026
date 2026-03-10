@@ -10,7 +10,7 @@
  */
 const OrientationManager = {
     /** @type {'mouse'|'imu'|'deviceorientation'} Active input source */
-    _source: 'mouse',
+    _source: 'imu',
     /** @type {'mouse'|'gyro'} User-selected preferred source */
     _preferred: 'gyro',
     /** @type {boolean} True when IMU data has been received at least once */
