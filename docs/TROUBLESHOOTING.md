@@ -137,7 +137,7 @@ Expected: ~3.3V idle, ~0V when pressed.
 ### Power monitor service
 - Check status: `systemctl status shadow-power`
 - Logs: `journalctl -u shadow-power -f`
-- If gpiod import fails: `sudo apt install python3-gpiod`
+- If gpiod import fails: `sudo apt install python3-libgpiod`
 
 ## IMU (I2C)
 

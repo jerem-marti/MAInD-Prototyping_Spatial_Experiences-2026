@@ -160,7 +160,7 @@ sudo systemctl restart systemd-logind
 ### Install gpiod (for power loss detection)
 
 ```bash
-sudo apt install -y python3-gpiod
+sudo apt install -y python3-libgpiod
 ```
 
 ### GPIO pin map (X1201)
