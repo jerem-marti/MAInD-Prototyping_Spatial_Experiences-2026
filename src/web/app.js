@@ -79,6 +79,7 @@ function setMode(m) {
 /* -- Gallery Management -- */
 
 let _galleryFrame = null;
+let _lastBatterySoc = null;
 
 function openGallery() {
     if (State.galleryOpen) return;
@@ -90,6 +91,18 @@ function openGallery() {
     _galleryFrame.src = '/gallery/';
     _galleryFrame.style.cssText =
         'position:fixed;inset:0;width:100vw;height:100vh;border:none;z-index:1000;background:#0a0a0c;';
+
+    // Send last known battery value once the gallery iframe loads
+    if (_lastBatterySoc !== null) {
+        _galleryFrame.addEventListener('load', () => {
+            if (_galleryFrame && _galleryFrame.contentWindow) {
+                _galleryFrame.contentWindow.postMessage(
+                    { type: 'battery', soc: _lastBatterySoc }, '*'
+                );
+            }
+        }, { once: true });
+    }
+
     document.body.appendChild(_galleryFrame);
 
     const btn = document.getElementById('btn-gallery');
@@ -155,6 +168,8 @@ function dismissSplash() {
 /* -- Battery Indicator -- */
 
 function _updateBattery(soc) {
+    _lastBatterySoc = soc;
+
     const el = document.getElementById('battery-indicator');
     const fill = document.getElementById('battery-fill');
     const pctEl = document.getElementById('battery-pct');

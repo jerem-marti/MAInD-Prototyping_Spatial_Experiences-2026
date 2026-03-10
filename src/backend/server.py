@@ -235,6 +235,9 @@ async def battery_broadcaster():
         # Quick probe — read version register (0x08)
         ver = bus.read_i2c_block_data(BAT_ADDR, 0x08, 2)
         print(f"[BAT] MAX17040 detected: version=0x{ver[0]:02X}{ver[1]:02X} on bus {BAT_BUS}, addr 0x{BAT_ADDR:02X}")
+        # Quick-start: reset fuel gauge SOC algorithm so it begins measuring
+        bus.write_word_data(BAT_ADDR, 0x06, 0x0040)  # MODE register, 0x4000 big-endian
+        time.sleep(0.5)  # allow IC to settle after quick-start
     except Exception as e:
         print(f"[BAT] Fuel gauge not found ({e}) — battery monitor disabled", file=sys.stderr)
         if bus:

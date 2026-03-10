@@ -69,6 +69,7 @@ html, body {
     background: var(--bar-bg);
     backdrop-filter: blur(6px);
     z-index: 10;
+    transform: translateZ(0);  /* force compositing layer above hw-accelerated video */
 }
 
 #gallery-header {
