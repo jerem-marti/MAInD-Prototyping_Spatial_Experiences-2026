@@ -153,6 +153,15 @@ if [ -f "$BOOT_CONFIG" ]; then
         sudo sh -c "echo 'disable_splash=1' >> $BOOT_CONFIG"
         echo "  Disabled RPi rainbow splash screen"
     fi
+
+    # Hold power LED GPIO low after system halt.
+    # GPIO 5 has a hardware pull-up — without this overlay the pin floats HIGH
+    # when the SoC halts, turning the LED back on even though the system is off.
+    # dtoverlay=gpio-poweroff tells the firmware to actively drive the pin low.
+    if ! grep -qF "gpio-poweroff" "$BOOT_CONFIG" 2>/dev/null; then
+        sudo sh -c "echo 'dtoverlay=gpio-poweroff,gpiopin=5,active_low=1' >> $BOOT_CONFIG"
+        echo "  Added gpio-poweroff overlay to hold power LED off after halt"
+    fi
 fi
 BOOT_CMDLINE="/boot/firmware/cmdline.txt"
 [ -f "$BOOT_CMDLINE" ] || BOOT_CMDLINE="/boot/cmdline.txt"
