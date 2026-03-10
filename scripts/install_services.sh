@@ -189,6 +189,22 @@ if [ -f "$LOGIND_CONF" ]; then
     echo "  Set HandlePowerKey=ignore in logind.conf"
 fi
 
+# Remove XF86PowerOff keybind from labwc (Wayland compositor intercepts it before logind)
+LABWC_SYS="/etc/xdg/labwc/rc.xml"
+LABWC_USER="$HOME/.config/labwc/rc.xml"
+if [ -f "$LABWC_SYS" ] && grep -q "XF86PowerOff" "$LABWC_SYS" 2>/dev/null; then
+    if [ ! -f "$LABWC_USER" ]; then
+        mkdir -p "$(dirname "$LABWC_USER")"
+        cp "$LABWC_SYS" "$LABWC_USER"
+    fi
+    if grep -q "XF86PowerOff" "$LABWC_USER" 2>/dev/null; then
+        sed -i '/<keybind key="XF86PowerOff"/,/<\/keybind>/d' "$LABWC_USER"
+        echo "  Removed XF86PowerOff keybind from labwc user config"
+    fi
+    # Live-reload labwc if running
+    labwc --reconfigure 2>/dev/null || true
+fi
+
 # ── EEPROM reminder (cannot be automated safely — needs interactive rpi-eeprom-config) ──
 
 echo ""

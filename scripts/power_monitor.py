@@ -24,7 +24,7 @@ from subprocess import call
 # Configuration (overridable via environment)
 # ---------------------------------------------------------------------------
 
-PLD_CHIP = os.environ.get("PLD_CHIP", "gpiochip4")
+PLD_CHIP = os.environ.get("PLD_CHIP", "/dev/gpiochip4")
 PLD_PIN = int(os.environ.get("PLD_PIN", "6"))
 
 BAT_BUS = int(os.environ.get("BAT_BUS", "1"))
@@ -79,20 +79,65 @@ def bat_read(bus):
 
 # ---------------------------------------------------------------------------
 # AC power detection (GPIO 6 on gpiochip4)
+# Supports both libgpiod v1 (Bullseye/Bookworm) and v2 (Trixie)
 # ---------------------------------------------------------------------------
 
+_GPIOD_V2 = None  # will be set to True/False on first call
+
+
+def _is_gpiod_v2():
+    global _GPIOD_V2
+    if _GPIOD_V2 is None:
+        import gpiod
+        _GPIOD_V2 = hasattr(gpiod, "request_lines")
+    return _GPIOD_V2
+
+
 def pld_setup():
-    """Open GPIO line for power-loss detection. Returns (chip, line)."""
+    """Open GPIO line for power-loss detection.
+
+    Returns an opaque handle suitable for pld_read() and pld_close().
+    """
     import gpiod
-    chip = gpiod.Chip(PLD_CHIP)
-    line = chip.get_line(PLD_PIN)
-    line.request(consumer="shadow-power", type=gpiod.LINE_REQ_DIR_IN)
-    return chip, line
+
+    if _is_gpiod_v2():
+        # libgpiod v2 API (Trixie)
+        request = gpiod.request_lines(
+            PLD_CHIP,
+            consumer="shadow-power",
+            config={PLD_PIN: gpiod.LineSettings(
+                direction=gpiod.line.Direction.INPUT,
+            )},
+        )
+        return request  # single object
+    else:
+        # libgpiod v1 API (Bookworm and older)
+        chip = gpiod.Chip(PLD_CHIP)
+        line = chip.get_line(PLD_PIN)
+        line.request(consumer="shadow-power", type=gpiod.LINE_REQ_DIR_IN)
+        return (chip, line)
 
 
-def pld_read(line):
+def pld_read(handle):
     """Return True if AC power is connected, False if on battery."""
-    return line.get_value() == 1
+    import gpiod
+
+    if _is_gpiod_v2():
+        val = handle.get_value(PLD_PIN)
+        return val == gpiod.line.Value.ACTIVE
+    else:
+        _chip, line = handle
+        return line.get_value() == 1
+
+
+def pld_close(handle):
+    """Release the GPIO resources."""
+    if _is_gpiod_v2():
+        handle.release()
+    else:
+        chip, line = handle
+        line.release()
+        chip.close()
 
 
 # ---------------------------------------------------------------------------
@@ -158,18 +203,17 @@ def main():
         bus = None
 
     # --- Init GPIO (PLD) ---
-    pld_line = None
-    pld_chip = None
+    pld_handle = None
     try:
-        pld_chip, pld_line = pld_setup()
-        ac = pld_read(pld_line)
+        pld_handle = pld_setup()
+        ac = pld_read(pld_handle)
         print(f"[POWER] PLD OK: AC {'connected' if ac else 'disconnected'}",
               flush=True)
     except Exception as e:
         print(f"[POWER] WARNING: PLD not available ({e}) — "
               "AC detection disabled", file=sys.stderr, flush=True)
 
-    if bus is None and pld_line is None:
+    if bus is None and pld_handle is None:
         print("[POWER] ERROR: neither fuel gauge nor PLD available — exiting",
               file=sys.stderr, flush=True)
         sys.exit(1)
@@ -189,9 +233,9 @@ def main():
 
             # Read AC
             ac_on = True
-            if pld_line:
+            if pld_handle:
                 try:
-                    ac_on = pld_read(pld_line)
+                    ac_on = pld_read(pld_handle)
                 except Exception as e:
                     print(f"[POWER] PLD read error: {e}",
                           file=sys.stderr, flush=True)
@@ -252,10 +296,8 @@ def main():
     finally:
         if bus:
             bus.close()
-        if pld_line:
-            pld_line.release()
-        if pld_chip:
-            pld_chip.close()
+        if pld_handle:
+            pld_close(pld_handle)
 
 
 if __name__ == "__main__":

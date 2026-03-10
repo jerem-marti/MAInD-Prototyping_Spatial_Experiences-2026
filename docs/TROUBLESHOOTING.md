@@ -115,10 +115,11 @@ Expected: ~3.3V idle, ~0V when pressed.
   ```bash
   python3 -c "
   import gpiod
-  chip = gpiod.Chip('gpiochip4')
-  line = chip.get_line(6)
-  line.request(consumer='test', type=gpiod.LINE_REQ_DIR_IN)
-  print('AC:', 'connected' if line.get_value() == 1 else 'disconnected')
+  req = gpiod.request_lines('/dev/gpiochip4', consumer='test',
+      config={6: gpiod.LineSettings(direction=gpiod.line.Direction.INPUT)})
+  val = req.get_value(6)
+  print('AC:', 'connected' if val == gpiod.line.Value.ACTIVE else 'disconnected')
+  req.release()
   "
   ```
 - Unplug the charger and re-run to confirm it reads 0
@@ -129,10 +130,13 @@ Expected: ~3.3V idle, ~0V when pressed.
 - Clear solder residue from GPIO pins 3 and 5 on the Pi's underside
 
 ### Shutdown dialog appears on power button press
-- Check logind config: `grep HandlePowerKey /etc/systemd/logind.conf`
-- Should read `HandlePowerKey=ignore`
-- Fix: `sudo sed -i 's/^.*HandlePowerKey=.*/HandlePowerKey=ignore/' /etc/systemd/logind.conf`
-- Reload: `sudo systemctl restart systemd-logind`
+- **Most likely:** labwc intercepts the key before logind. Check: `grep XF86PowerOff ~/.config/labwc/rc.xml`
+  - Fix: `sed -i '/<keybind key="XF86PowerOff"/,/<\/keybind>/d' ~/.config/labwc/rc.xml && labwc --reconfigure`
+- **Also check:** logind config: `grep HandlePowerKey /etc/systemd/logind.conf`
+  - Should read `HandlePowerKey=ignore`
+  - Fix: `sudo sed -i 's/^.*HandlePowerKey=.*/HandlePowerKey=ignore/' /etc/systemd/logind.conf`
+  - Reload: `sudo systemctl restart systemd-logind`
+- Re-running `scripts/install_services.sh` fixes both layers automatically
 
 ### Power monitor service
 - Check status: `systemctl status shadow-power`

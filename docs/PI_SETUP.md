@@ -137,7 +137,18 @@ PSU_MAX_CURRENT=5000
 
 ### Disable the shutdown dialog (power button)
 
-The X1201 has a physical button that behaves like the Pi 5 power button. By default, a single press opens a "Shutdown Options" dialog on the desktop. Since we're running a kiosk, we ignore single presses and let the shield's long-press handle hardware power-off:
+The X1201 has a physical button that behaves like the Pi 5 power button. By default, a single press opens a "Shutdown Options" dialog on the desktop. Two layers intercept this event:
+
+**1. labwc (Wayland compositor)** — grabs `XF86PowerOff` before logind sees it:
+
+```bash
+mkdir -p ~/.config/labwc
+cp /etc/xdg/labwc/rc.xml ~/.config/labwc/rc.xml
+sed -i '/<keybind key="XF86PowerOff"/,/<\/keybind>/d' ~/.config/labwc/rc.xml
+labwc --reconfigure 2>/dev/null || true
+```
+
+**2. systemd-logind** — fallback handler:
 
 ```bash
 sudo nano /etc/systemd/logind.conf
@@ -155,7 +166,7 @@ Then:
 sudo systemctl restart systemd-logind
 ```
 
-> This is also done automatically by `scripts/install_services.sh`.
+> Both are done automatically by `scripts/install_services.sh`.
 
 ### Install gpiod (for power loss detection)
 
