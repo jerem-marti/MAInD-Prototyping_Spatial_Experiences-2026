@@ -117,7 +117,75 @@ sudo i2cdetect -y 1
 
 Expected addresses: `0x6A` (IMU), `0x36` (power shield fuel gauge).
 
-## 9. Install Kismet (Trixie)
+## 9. X1201 UPS Power Management
+
+### EEPROM configuration (one-time)
+
+```bash
+sudo rpi-eeprom-config -e
+```
+
+Set / add the following values, then save and reboot:
+
+```
+POWER_OFF_ON_HALT=1
+PSU_MAX_CURRENT=5000
+```
+
+- `POWER_OFF_ON_HALT=1` — Pi cuts the 5V rail after `shutdown -h now`. The X1201 detects this and enters ultra-low-power standby, cutting power to everything.
+- `PSU_MAX_CURRENT=5000` — suppresses the "not capable of supplying 5A" warning.
+
+### Disable the shutdown dialog (power button)
+
+The X1201 has a physical button that behaves like the Pi 5 power button. By default, a single press opens a "Shutdown Options" dialog on the desktop. Since we're running a kiosk, we ignore single presses and let the shield's long-press handle hardware power-off:
+
+```bash
+sudo nano /etc/systemd/logind.conf
+```
+
+Set:
+
+```ini
+HandlePowerKey=ignore
+```
+
+Then:
+
+```bash
+sudo systemctl restart systemd-logind
+```
+
+> This is also done automatically by `scripts/install_services.sh`.
+
+### Install gpiod (for power loss detection)
+
+```bash
+sudo apt install -y python3-gpiod
+```
+
+### GPIO pin map (X1201)
+
+| GPIO | Function | Direction |
+|---|---|---|
+| 6 | Power Loss Detection (PLD) | Input — 1 = AC on, 0 = AC lost |
+| 16 | Charging control | Output — `dl` = charge, `dh` = stop |
+
+### Power monitor service
+
+The `shadow-power` systemd service monitors battery level and AC power. It triggers a
+graceful shutdown (stopping all shadow services first) when:
+
+- AC power is lost **and** battery SOC drops below 15%, or
+- Battery SOC drops below 5% (regardless of AC), or
+- Battery voltage drops below 3.20V
+
+Installed by `scripts/install_services.sh`. Logs:
+
+```bash
+journalctl -u shadow-power -f
+```
+
+## 10. Install Kismet (Trixie)
 
 Kismet provides official **Debian Trixie arm64** packages:
 
@@ -170,7 +238,7 @@ curl -sS --user 'shadow:change-this-now' \
   'http://127.0.0.1:2501/devices/views/phydot11_accesspoints/last-time/-60/devices.prettyjson' | jq .
 ```
 
-## 10. Environment Config
+## 11. Environment Config
 
 ```bash
 cp config/shadow.env.example config/shadow.env
@@ -179,7 +247,7 @@ nano config/shadow.env
 
 Set the Kismet password and verify paths.
 
-## 11. GPIO (buttons + IMU)
+## 12. GPIO (buttons + LEDs + IMU)
 
 ### Buttons
 
@@ -187,10 +255,21 @@ Each button is wired between a GPIO and GND (internal pull-ups, no resistor need
 
 | Button | GPIO | Physical Pin | GND Pin |
 |---|---|---|---|
-| Snapshot | 17 | pin 11 | pin 9/14 |
-| Mode | 27 | pin 13 | pin 14/9 |
+| Snapshot | 12 | pin 32 | pin 30/34 |
+| Mode | 26 | pin 37 | pin 34/39 |
 
-> **Note:** If using a power shield on GPIO16, avoid GPIO16 for buttons (~0.8V idle). GPIO12 (pin 32) and GPIO26 (pin 37) are safe alternatives.
+### LEDs
+
+Both LEDs use GPIOs with default pull-down so they go LOW cleanly when the Pi cuts power (POWER_OFF_ON_HALT=1).
+
+| LED | Type | GPIO | Physical Pin |
+|---|---|---|---|
+| Power | Digital (on/off) | 20 | pin 38 |
+| Sense | PWM (breathing) | 13 | pin 33 |
+
+> **Reserved by X1201 power shield:**
+> - GPIO 6 — Power Loss Detection (PLD input). Do **not** use for LEDs or buttons.
+> - GPIO 16 — Charging control (output). Do **not** use for LEDs or buttons.
 
 ### Grove 6-axis IMU (I2C @ 0x6A)
 

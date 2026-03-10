@@ -30,8 +30,8 @@ GALLERY_DIR = os.environ.get("GALLERY_DIR",
 HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
 BTN_SNAPSHOT = int(os.environ.get("BTN_SNAPSHOT", "12"))   # physical pin 32
 BTN_MODE = int(os.environ.get("BTN_MODE", "26"))           # physical pin 37
-LED_POWER = int(os.environ.get("LED_POWER", "17"))
-LED_SENSE = int(os.environ.get("LED_SENSE", "6"))
+LED_POWER = int(os.environ.get("LED_POWER", "20"))
+LED_SENSE = int(os.environ.get("LED_SENSE", "13"))
 
 # --- IMU (LSM6DS) configuration ---
 IMU_BUS = int(os.environ.get("IMU_BUS", "1"))

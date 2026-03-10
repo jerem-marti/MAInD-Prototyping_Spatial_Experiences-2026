@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-LED hardware test — GPIO 0 (power) and GPIO 6 (sense).
+LED hardware test — GPIO 20 (power) and GPIO 13 (sense).
 
 Run on the Pi:
     python3 scripts/test/test_leds.py
 
 Optionally override pins via env:
-    LED_POWER=0 LED_SENSE=6 python3 scripts/test/test_leds.py
+    LED_POWER=20 LED_SENSE=13 python3 scripts/test/test_leds.py
 """
 import os
 import time
 
 from gpiozero import LED, PWMLED
 
-LED_POWER_PIN = int(os.environ.get("LED_POWER", "0"))
-LED_SENSE_PIN = int(os.environ.get("LED_SENSE", "6"))
+LED_POWER_PIN = int(os.environ.get("LED_POWER", "20"))
+LED_SENSE_PIN = int(os.environ.get("LED_SENSE", "13"))
 
 BLINK_ON  = 0.3   # seconds LED stays on per blink
 BLINK_OFF = 0.2   # seconds LED stays off per blink

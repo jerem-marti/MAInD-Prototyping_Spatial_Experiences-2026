@@ -7,6 +7,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart shadow-kismet  || true
 sudo systemctl restart shadow-reducer || true
 sudo systemctl restart shadow-backend || true
+sudo systemctl restart shadow-power   || true
 
 # Kiosk runs via lxsession autostart (launches with the desktop).
 # Kill the running instance and relaunch with fresh code.

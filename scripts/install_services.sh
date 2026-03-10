@@ -20,7 +20,7 @@ install_template() {
 
 # ── System-level services (kismet, reducer, backend) ──
 
-for unit in shadow-kismet.service shadow-reducer.service shadow-backend.service; do
+for unit in shadow-kismet.service shadow-reducer.service shadow-backend.service shadow-power.service; do
     echo "  Installing $unit (system)"
     install_template "$SYSTEMD_DIR/$unit" "/tmp/$unit"
     sudo mv "/tmp/$unit" "/etc/systemd/system/$unit"
@@ -28,7 +28,7 @@ done
 
 sudo systemctl daemon-reload
 
-for unit in shadow-kismet shadow-reducer shadow-backend; do
+for unit in shadow-kismet shadow-reducer shadow-backend shadow-power; do
     sudo systemctl enable "$unit"
     echo "  Enabled $unit"
 done
@@ -171,18 +171,53 @@ if [ -n "$SESSION_NAME" ] && [ -f "$USER_AUTOSTART" ]; then
     fi
 fi
 
+# ── Power button: ignore single press (X1201 long-press handles shutdown) ──
+
+echo ""
+echo "--- Power button / X1201 UPS config ---"
+
+LOGIND_CONF="/etc/systemd/logind.conf"
+if [ -f "$LOGIND_CONF" ]; then
+    # Set HandlePowerKey=ignore (suppress shutdown dialog on single press)
+    if grep -q "^HandlePowerKey=" "$LOGIND_CONF" 2>/dev/null; then
+        sudo sed -i 's/^HandlePowerKey=.*/HandlePowerKey=ignore/' "$LOGIND_CONF"
+    elif grep -q "^#HandlePowerKey=" "$LOGIND_CONF" 2>/dev/null; then
+        sudo sed -i 's/^#HandlePowerKey=.*/HandlePowerKey=ignore/' "$LOGIND_CONF"
+    else
+        sudo sh -c "echo 'HandlePowerKey=ignore' >> $LOGIND_CONF"
+    fi
+    echo "  Set HandlePowerKey=ignore in logind.conf"
+fi
+
+# ── EEPROM reminder (cannot be automated safely — needs interactive rpi-eeprom-config) ──
+
+echo ""
+echo "--- EEPROM check ---"
+echo "  Ensure the following EEPROM settings are applied (run once manually):"
+echo ""
+echo "    sudo rpi-eeprom-config -e"
+echo ""
+echo "  Set / verify these values:"
+echo "    POWER_OFF_ON_HALT=1      (Pi cuts 5V on halt -> X1201 enters standby)"
+echo "    PSU_MAX_CURRENT=5000     (suppress 5A warning)"
+echo ""
+
 echo ""
 echo "=== Done. Services will start on next boot. ==="
 echo ""
 echo "  Kismet, Reducer, Backend: systemd (auto-start at boot)"
+echo "  Power monitor (X1201):    systemd (auto-start at boot)"
 echo "  Kiosk browser:            lxsession/${SESSION_NAME}/autostart"
 echo "  Desktop:                  black background, no panel, cursor hidden"
+echo "  Power button:             single press ignored, long press = shield shutdown"
 echo ""
 echo "Manual control:"
 echo "  sudo systemctl start shadow-kismet shadow-reducer shadow-backend"
+echo "  sudo systemctl start shadow-power"
 echo "  bash $DEPLOY_DIR/scripts/kiosk.sh"
 echo ""
 echo "Logs:"
 echo "  journalctl -u shadow-kismet -f"
 echo "  journalctl -u shadow-reducer -f"
 echo "  journalctl -u shadow-backend -f"
+echo "  journalctl -u shadow-power -f"

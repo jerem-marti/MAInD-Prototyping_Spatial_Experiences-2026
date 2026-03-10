@@ -78,25 +78,66 @@
 ## GPIO
 
 ### Buttons not responding
-- Check wiring on GPIO 17 and 27
+- Check wiring on GPIO 12 (snapshot) and 26 (mode)
 - Ensure user is in `gpio` group
-- Test manually: `python3 -c "from gpiozero import Button; b=Button(17); print(b.is_pressed)"`
+- Test manually: `python3 -c "from gpiozero import Button; b=Button(12); print(b.is_pressed)"`
+
+### LEDs not working
+- Power LED on GPIO 20 (pin 38), Sense LED on GPIO 13 (pin 33)
+- If `shadow-backend` is running, the GPIO is busy — stop the service first to test manually
+- Test: `python3 scripts/test/test_leds.py`
 
 ### Button reads wrong voltage (~0.8V idle)
 - A power shield on GPIO16 can interfere with nearby pins
-- Move the button to GPIO12 (pin 32) or GPIO26 (pin 37) instead
-- Update `BTN_SNAPSHOT` / `BTN_MODE` in `server.py` accordingly
+- Buttons are on GPIO12 (pin 32) and GPIO26 (pin 37) to avoid this
 
 ### Verify GPIO pull-up
 
 `raspi-gpio` was removed in Trixie. Use `pinctrl` instead (pre-installed on Raspberry Pi OS Trixie):
 
 ```bash
-pinctrl set 17 ip pu
-pinctrl get 17
+pinctrl set 12 ip pu
+pinctrl get 12
 ```
 
 Expected: ~3.3V idle, ~0V when pressed.
+
+## X1201 UPS / Power Management
+
+### Pi doesn't power off the shield on shutdown
+- Verify EEPROM: `sudo rpi-eeprom-config` — check `POWER_OFF_ON_HALT=1`
+- If missing, set it: `sudo rpi-eeprom-config -e`, add `POWER_OFF_ON_HALT=1`, reboot
+- The X1201 detects 5V rail drop and enters standby
+
+### Power Loss Detection (PLD) not working
+- PLD uses GPIO 6 on gpiochip4 — make sure nothing else claims GPIO 6
+- Test PLD manually:
+  ```bash
+  python3 -c "
+  import gpiod
+  chip = gpiod.Chip('gpiochip4')
+  line = chip.get_line(6)
+  line.request(consumer='test', type=gpiod.LINE_REQ_DIR_IN)
+  print('AC:', 'connected' if line.get_value() == 1 else 'disconnected')
+  "
+  ```
+- Unplug the charger and re-run to confirm it reads 0
+
+### Battery fuel gauge not detected
+- Check I2C: `sudo i2cdetect -y 1` — address `0x36` should appear
+- If missing, check pogo-pin contact between X1201 and Pi (reseat the board)
+- Clear solder residue from GPIO pins 3 and 5 on the Pi's underside
+
+### Shutdown dialog appears on power button press
+- Check logind config: `grep HandlePowerKey /etc/systemd/logind.conf`
+- Should read `HandlePowerKey=ignore`
+- Fix: `sudo sed -i 's/^.*HandlePowerKey=.*/HandlePowerKey=ignore/' /etc/systemd/logind.conf`
+- Reload: `sudo systemctl restart systemd-logind`
+
+### Power monitor service
+- Check status: `systemctl status shadow-power`
+- Logs: `journalctl -u shadow-power -f`
+- If gpiod import fails: `sudo apt install python3-gpiod`
 
 ## IMU (I2C)
 
