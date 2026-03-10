@@ -89,19 +89,15 @@ const TelemetryMapper = {
         signal.params.opacity = st.smoothedOpacity;
 
         // --- hue: NOT mapped from telemetry ---
-        // Hue is environment-driven (background image sampling).
-        // If anchor.color is set by ImageDeformPass.sampleColor(), the
-        // fluid engine already uses that sampled color for splats.
-        // We leave hue untouched so manual/image-based color is preserved.
+        // Hue is environment-driven (sampled from background image at anchor position).
+        // We leave hue untouched so camera-sampled color is preserved.
 
-        // --- Type-based hue override ---
-        // Override hue per device type for visual differentiation
-        if (signal._deviceType && State.typeHues && State.typeHues[signal._deviceType] !== undefined) {
-            const typeHue = State.typeHues[signal._deviceType];
-            if (signal.params.hue !== typeHue) {
-                signal.params.hue = typeHue;
-                signal._buildGradient();
-            }
+        // --- Type-based size override ---
+        // Scale radiusLimit and size per device type for visual differentiation
+        if (signal._deviceType && State.typeSizes && State.typeSizes[signal._deviceType] !== undefined) {
+            const scale = State.typeSizes[signal._deviceType];
+            signal.params.radiusLimit *= scale;
+            signal.params.size = signal.params.radiusLimit / 65000;
         }
     }
 };

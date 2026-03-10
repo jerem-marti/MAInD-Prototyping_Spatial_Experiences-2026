@@ -484,24 +484,24 @@ const UIManager = {
             manualToggle.addEventListener('change', (e) => { State.useManualParams = e.target.checked; });
         }
 
-        // Max signals +/- buttons
+        // Max signals +/- buttons (controls targetVisibleSignals, maxSignals is computed from FOV)
         const maxSignalsDisplay = document.getElementById('max-signals-display');
         const btnMaxInc = document.getElementById('btn-max-signals-inc');
         const btnMaxDec = document.getElementById('btn-max-signals-dec');
-        if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
+        if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.targetVisibleSignals;
         if (btnMaxInc) {
             btnMaxInc.addEventListener('click', () => {
-                if (State.maxSignals < 720) {
-                    State.maxSignals++;
-                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
+                if (State.targetVisibleSignals < 64) {
+                    State.targetVisibleSignals++;
+                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.targetVisibleSignals;
                 }
             });
         }
         if (btnMaxDec) {
             btnMaxDec.addEventListener('click', () => {
-                if (State.maxSignals > 1) {
-                    State.maxSignals--;
-                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
+                if (State.targetVisibleSignals > 1) {
+                    State.targetVisibleSignals--;
+                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.targetVisibleSignals;
                 }
             });
         }

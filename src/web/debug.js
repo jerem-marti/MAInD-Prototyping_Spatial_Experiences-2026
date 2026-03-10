@@ -127,7 +127,7 @@ const DebugMode = {
         lines.push('── TELEMETRY ──');
         lines.push(`Source: ${ts.source}`);
         lines.push(`Total Devices: ${ts.raw.totalDeviceCount} (${ts.norm.totalDeviceCount.toFixed(2)})`);
-        lines.push(`WiFi: ${ts.raw.wifiDeviceCount}  BTLE: ${ts.raw.btleCount}  BT: ${ts.raw.btClassicCount}`);
+        lines.push(`WiFi AP: ${ts.raw.wifiApCount}  CLI: ${ts.raw.wifiClientCount}  BT: ${ts.raw.btleCount}`);
         lines.push(`BLE Ratio: ${(ts.raw.bleRatio * 100).toFixed(0)}% (${ts.norm.bleRatio.toFixed(2)})`);
         lines.push(`WiFi RSSI: ${ts.raw.wifiMeanRssi.toFixed(1)} dBm (${ts.norm.wifiMeanRssi.toFixed(2)})`);
         lines.push(`RSSI Var: ${ts.raw.wifiRssiVariance.toFixed(1)} (${ts.norm.wifiRssiVariance.toFixed(2)})`);
@@ -140,11 +140,11 @@ const DebugMode = {
         lines.push('── 360° VIEW ──');
         lines.push(`Yaw: ${State.viewYaw.toFixed(1)}°  Pitch: ${State.viewPitch.toFixed(1)}°`);
         lines.push(`FOV: ${State.cameraFov.h}° × ${State.cameraFov.v}°`);
-        lines.push(`Devices: ${State.signals.length}/${State.devices.length} visible`);
+        lines.push(`Devices: ${State.signals.length}/${State.devices.length} visible (target ${State.targetVisibleSignals}, pool ${State.maxSignals})`);
         const apCount = State.devices.filter(d => d.type === 'Wi-Fi AP').length;
         const cliCount = State.devices.filter(d => d.type === 'Wi-Fi Client').length;
         const btCount = State.devices.filter(d => d.type === 'Bluetooth').length;
-        lines.push(`AP:${apCount} CLI:${cliCount} BT:${btCount} (cap ${State.maxSignals})`);
+        lines.push(`AP:${apCount} CLI:${cliCount} BT:${btCount}`);
         if (typeof OrientationManager !== 'undefined') {
             lines.push(`Input: ${OrientationManager.getSourceName()}`);
         }

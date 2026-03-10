@@ -29,13 +29,21 @@ const State = {
     cameraFov: { h: 66, v: 41 },
 
     // Device globe settings
-    maxSignals: 720,         // Soft cap on total displayed signals (all types)
+    // maxSignals is computed from FOV so ~targetVisibleSignals end up on screen
+    // after frustum culling. Devices are hash-distributed on a 360x180 sphere;
+    // the visible fraction = (fov.h / 360) * (fov.v / 180).
+    targetVisibleSignals: 16,
+    get maxSignals() {
+        const frac = (this.cameraFov.h / 360) * (this.cameraFov.v / 180);
+        return Math.round(this.targetVisibleSignals / Math.max(0.01, frac));
+    },
 
-    // Type-based hue overrides for visual differentiation
-    typeHues: {
-        'Wi-Fi AP':     200,   // blue/cyan
-        'Wi-Fi Client': 140,   // green/teal
-        'Bluetooth':     30,   // amber/warm
+    // Type-based size multipliers for visual differentiation
+    // (1.0 = default size from TelemetryMapper; >1 = larger, <1 = smaller)
+    typeSizes: {
+        'Wi-Fi AP':     1.6,   // large fog blobs
+        'Wi-Fi Client': 1.0,   // standard
+        'Bluetooth':    0.5,   // small compact sparks
     },
 
     // Minimum RSSI threshold — signals weaker than this are filtered out

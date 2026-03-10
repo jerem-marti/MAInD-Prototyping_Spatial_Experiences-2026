@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, hashlib, json, math, os, sys, time
+import argparse, hashlib, json, math, os, re, sys, time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -126,6 +126,19 @@ def reduce_wifi_clients(devs: List[Dict[str, Any]], salt: str, ap_ids: set) -> L
     out.sort(key=lambda x: x.get("strength", 0.0), reverse=True)
     return out
 
+_MAC_RE = re.compile(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$')
+
+def _has_real_name(name: str) -> bool:
+    """Return True if name is a human-readable name, not a MAC address or placeholder."""
+    if not name or not name.strip():
+        return False
+    n = name.strip()
+    if _MAC_RE.match(n):
+        return False
+    if n in ("(bt)", "(unknown)", "unknown"):
+        return False
+    return True
+
 def reduce_bt(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any]]:
     out = []
     for d in devs:
@@ -220,7 +233,7 @@ def main():
 
     wifi_views = ["phy80211_accesspoints", "phydot11_accesspoints"]
     wifi_all_views = ["phy-IEEE802.11", "phydot11_all"]
-    bt_views = ["phybluetooth", "phybluetooth_le", "linuxbluetooth"]
+    bt_views = ["phy-Bluetooth", "phybluetooth", "phy-BTLE", "phybluetooth_le", "linuxbluetooth"]
 
     print("Reducer running. Writing:", args.out)
     while True:

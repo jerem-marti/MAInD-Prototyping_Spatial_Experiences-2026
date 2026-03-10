@@ -17,6 +17,8 @@ const Telemetry = {
     _lastLogTime: 0,
 
     raw: {
+        wifiApCount: 0,
+        wifiClientCount: 0,
         wifiDeviceCount: 0,
         wifiMeanRssi: -65,
         wifiRssiVariance: 0,
@@ -131,6 +133,8 @@ const Telemetry = {
             const btDevices = (ghostState.bt && ghostState.bt.devices) || [];
 
             // Use pre-computed aggregate telemetry from reducer
+            this.raw.wifiApCount = tel.wifi_ap_count ?? wifiAps.length;
+            this.raw.wifiClientCount = tel.wifi_client_count ?? wifiClients.length;
             this.raw.wifiDeviceCount = tel.wifi_count ?? (wifiAps.length + wifiClients.length);
             this.raw.wifiMeanRssi = tel.wifi_mean_rssi ?? -65;
             this.raw.wifiRssiVariance = tel.wifi_rssi_variance ?? 0;
@@ -151,11 +155,14 @@ const Telemetry = {
             const buildDevice = (d, type) => {
                 const id = d.id || '';
                 if (!id) return null;
-                const rssi = d.signal_dbm || -70;
-                if (rssi < minRssi) return null;
+                const hasSignal = d.signal_dbm != null && d.signal_dbm !== 0;
+                const rssi = hasSignal ? d.signal_dbm : -70;
+                // Apply RSSI filter only to devices that actually report signal
+                if (hasSignal && rssi < minRssi) return null;
                 return {
                     mac: id,
                     rssi: rssi,
+                    hasSignal: hasSignal,
                     rssiMin: rssi,
                     rssiMax: rssi,
                     name: d.name || id.slice(0, 8),
@@ -163,6 +170,7 @@ const Telemetry = {
                     type: type,
                     packets: 0,
                     burstRate: 0,
+                    lastSeen: d.last_seen || 0,
                     azimuth: this._hashIdToAngle(id),
                     elevation: this._hashIdToElevation(id)
                 };
@@ -173,34 +181,18 @@ const Telemetry = {
             const clientDevs = wifiClients.map(d => buildDevice(d, 'Wi-Fi Client')).filter(Boolean);
             const btDevs = btDevices.map(d => buildDevice(d, 'Bluetooth')).filter(Boolean);
 
-            // Sort each by RSSI descending (strongest first)
-            apDevs.sort((a, b) => b.rssi - a.rssi);
-            clientDevs.sort((a, b) => b.rssi - a.rssi);
-            btDevs.sort((a, b) => b.rssi - a.rssi);
+            // Sort each by RSSI descending (strongest first), last_seen as tiebreaker
+            const sortDevices = (a, b) => b.rssi - a.rssi || b.lastSeen - a.lastSeen;
+            apDevs.sort(sortDevices);
+            clientDevs.sort(sortDevices);
+            btDevs.sort(sortDevices);
 
-            // Proportional slot allocation
-            const totalFiltered = apDevs.length + clientDevs.length + btDevs.length;
-            const displayCount = Math.min(totalFiltered, State.maxSignals);
-
-            let apSlots, clientSlots, btSlots;
-            if (totalFiltered === 0) {
-                apSlots = clientSlots = btSlots = 0;
-            } else {
-                apSlots = Math.round(displayCount * (apDevs.length / totalFiltered));
-                clientSlots = Math.round(displayCount * (clientDevs.length / totalFiltered));
-                btSlots = displayCount - apSlots - clientSlots;
-                // Ensure each type with devices gets at least 1 slot
-                if (apDevs.length > 0 && apSlots === 0) { apSlots = 1; btSlots--; }
-                if (clientDevs.length > 0 && clientSlots === 0) { clientSlots = 1; btSlots--; }
-                if (btDevs.length > 0 && btSlots <= 0) { btSlots = 1; }
-            }
-
-            // Take top N from each type
-            const selected = [
-                ...apDevs.slice(0, Math.max(0, apSlots)),
-                ...clientDevs.slice(0, Math.max(0, clientSlots)),
-                ...btDevs.slice(0, Math.max(0, btSlots))
-            ];
+            // No cap — pass all filtered devices through.
+            // Frustum culling in the renderer limits what's actually on screen.
+            const selected = [...apDevs, ...clientDevs, ...btDevs];
+            const apSlots = apDevs.length;
+            const clientSlots = clientDevs.length;
+            const btSlots = btDevs.length;
 
             // Final sort by RSSI for consistent ordering
             selected.sort((a, b) => b.rssi - a.rssi);
