@@ -63,6 +63,24 @@ if [ -n "$SESSION_NAME" ]; then
         echo "  Removed lxpanel from autostart (hide taskbar)"
     fi
 
+    # Remove pcmanfm desktop manager (draws wallpaper/icons — causes visible flash)
+    if grep -qF "@pcmanfm" "$USER_AUTOSTART" 2>/dev/null; then
+        sed -i '/@pcmanfm/d' "$USER_AUTOSTART"
+        echo "  Removed pcmanfm desktop (prevents wallpaper flash)"
+    fi
+
+    # Remove screensaver if present
+    if grep -qF "@xscreensaver" "$USER_AUTOSTART" 2>/dev/null; then
+        sed -i '/@xscreensaver/d' "$USER_AUTOSTART"
+        echo "  Removed xscreensaver from autostart"
+    fi
+
+    # Paint the X root window black immediately (first thing the user sees)
+    if ! grep -qF "xsetroot" "$USER_AUTOSTART" 2>/dev/null; then
+        sed -i "1i @xsetroot -solid '#0a0a0c'" "$USER_AUTOSTART"
+        echo "  Added xsetroot black background as first autostart entry"
+    fi
+
     # Append kiosk entry if not already there
     if ! grep -qF "kiosk.sh" "$USER_AUTOSTART" 2>/dev/null; then
         echo "$KIOSK_CMD" >> "$USER_AUTOSTART"
@@ -98,7 +116,7 @@ if ! command -v unclutter >/dev/null 2>&1; then
         || echo "  WARNING: could not install unclutter"
 fi
 
-# Set PCManFM desktop to black background with no icons (LXDE desktop manager)
+# Set PCManFM desktop to black background with no icons (safety net if pcmanfm is re-added)
 PCMANFM_CONF_DIR="$HOME/.config/pcmanfm/$SESSION_NAME"
 PCMANFM_CONF="$PCMANFM_CONF_DIR/desktop-items-0.conf"
 
@@ -114,7 +132,35 @@ show_documents=0
 show_trash=0
 show_mounts=0
 DESKEOF
-    echo "  Set desktop background to #0a0a0c (black), icons hidden"
+    echo "  Set PCManFM fallback background to #0a0a0c"
+fi
+
+# Configure lightdm greeter to show black background (covers DM → session gap)
+LIGHTDM_GREETER="/etc/lightdm/lightdm-gtk-greeter.conf"
+if [ -f "$LIGHTDM_GREETER" ]; then
+    if ! grep -qF "background=#0a0a0c" "$LIGHTDM_GREETER" 2>/dev/null; then
+        sudo sed -i 's/^background=.*/background=#0a0a0c/' "$LIGHTDM_GREETER" 2>/dev/null \
+            || sudo sh -c "echo '[greeter]\nbackground=#0a0a0c' >> $LIGHTDM_GREETER"
+        echo "  Set lightdm greeter background to black"
+    fi
+fi
+
+# Disable RPi boot splash and text console for clean boot (requires reboot)
+BOOT_CONFIG="/boot/firmware/config.txt"
+[ -f "$BOOT_CONFIG" ] || BOOT_CONFIG="/boot/config.txt"
+if [ -f "$BOOT_CONFIG" ]; then
+    if ! grep -qF "disable_splash=1" "$BOOT_CONFIG" 2>/dev/null; then
+        sudo sh -c "echo 'disable_splash=1' >> $BOOT_CONFIG"
+        echo "  Disabled RPi rainbow splash screen"
+    fi
+fi
+BOOT_CMDLINE="/boot/firmware/cmdline.txt"
+[ -f "$BOOT_CMDLINE" ] || BOOT_CMDLINE="/boot/cmdline.txt"
+if [ -f "$BOOT_CMDLINE" ]; then
+    if ! grep -qF "quiet" "$BOOT_CMDLINE" 2>/dev/null; then
+        sudo sed -i 's/$/ quiet splash logo.nologo vt.global_cursor_default=0/' "$BOOT_CMDLINE"
+        echo "  Added quiet boot params (hides console text)"
+    fi
 fi
 
 # Add unclutter to lxsession autostart if not already present
