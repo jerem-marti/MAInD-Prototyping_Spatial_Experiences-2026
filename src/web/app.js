@@ -133,6 +133,15 @@ window.addEventListener('message', function(ev) {
     }
 });
 
+/* -- Splash Screen -- */
+
+function dismissSplash() {
+    const splash = document.getElementById('splash');
+    if (!splash || splash.classList.contains('hidden')) return;
+    splash.classList.add('hidden');
+    splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+}
+
 /* -- WebSocket Connection -- */
 
 function connectWebSocket() {
@@ -144,6 +153,7 @@ function connectWebSocket() {
     _ws.onopen = () => {
         if (wsStatus) wsStatus.textContent = 'CONNECTED';
         console.log('[App] WebSocket connected');
+        dismissSplash();
     };
 
     _ws.onclose = () => {
@@ -219,6 +229,8 @@ function initApp() {
     LivePhotoCapture.init(UI.canvas);
 
     // Connect to backend WebSocket
+    const splashStatus = document.querySelector('.splash-status');
+    if (splashStatus) splashStatus.innerHTML = '<span class="splash-dot"></span>Connecting';
     connectWebSocket();
 
     console.log('[App] All modules initialized');

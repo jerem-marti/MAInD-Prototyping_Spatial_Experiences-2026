@@ -10,6 +10,14 @@
 </head>
 
 <body>
+    <!-- Splash overlay — visible until camera feed + WebSocket are ready -->
+    <div id="splash">
+        <div class="splash-title">Ghost Signal</div>
+        <div class="splash-subtitle">Shadow Creatures</div>
+        <div class="splash-spinner"></div>
+        <div class="splash-status"><span class="splash-dot"></span>Initializing system</div>
+    </div>
+
     <div id="app">
         <!-- SIDEBAR (hidden by default, overlays on toggle) -->
         <aside id="sidebar">

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Launch Chromium in kiosk mode for the Shadow Creatures overlay.
 #
-# Instead of waiting for the backend in bash (showing a bare desktop),
-# Chromium opens immediately with a local splash page that polls the
-# backend and redirects when it's ready.
+# Waits for the backend to respond (user sees a black screen during
+# this period thanks to the desktop cleanup), then opens Chromium
+# directly to the app. The app itself shows a splash overlay while
+# the WebSocket and camera feed initialize.
 #
 # The --disable-gpu-video-decode flag prevents ChromeGPU from trying to
 # create SharedImageBacking for Y_UV 420 video frames on VideoCore,
@@ -13,12 +14,6 @@
 # Usage:  bash scripts/kiosk.sh [URL]
 
 URL="${1:-http://localhost:8080}"
-
-# Resolve project root (scripts/ lives one level below)
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DEPLOY_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-SPLASH_FILE="$DEPLOY_DIR/src/web/splash.html"
 
 # Fallback if not running inside a desktop session (e.g. manual SSH launch)
 if [ -z "$DISPLAY" ] && [ -z "$WAYLAND_DISPLAY" ]; then
@@ -31,18 +26,24 @@ if [ -n "$WAYLAND_DISPLAY" ]; then
     EXTRA_FLAGS+=(--ozone-platform=wayland)
 fi
 
-# If the backend is already up, go straight to it; otherwise show splash
-if curl -s --max-time 2 "$URL" >/dev/null 2>&1; then
-    LAUNCH_URL="$URL"
-    echo "[kiosk] Backend already up — launching directly"
-else
-    LAUNCH_URL="file://${SPLASH_FILE}"
-    echo "[kiosk] Backend not ready — launching splash screen"
-fi
+# Wait for the backend to respond before launching Chromium.
+# The desktop is black (no panel, no wallpaper) so the user just sees
+# a blank screen during this wait — no OS GUI is visible.
+MAX_WAIT=60
+ATTEMPT=0
+while [ "$ATTEMPT" -lt "$MAX_WAIT" ]; do
+    if curl -s --max-time 2 "$URL" >/dev/null 2>&1; then
+        echo "[kiosk] Backend ready at $URL"
+        break
+    fi
+    ATTEMPT=$((ATTEMPT + 1))
+    echo "[kiosk] Waiting for backend... ($ATTEMPT/$MAX_WAIT)"
+    sleep 2
+done
 
-echo "[kiosk] Launching chromium -> $LAUNCH_URL"
+echo "[kiosk] Launching chromium -> $URL"
 exec chromium \
-  --app="$LAUNCH_URL" \
+  --app="$URL" \
   --start-fullscreen \
   --kiosk \
   --noerrdialogs \
@@ -50,5 +51,4 @@ exec chromium \
   --password-store=basic \
   --disable-gpu-video-decode \
   --disable-software-rasterizer \
-  --allow-file-access-from-files \
   "${EXTRA_FLAGS[@]}"
