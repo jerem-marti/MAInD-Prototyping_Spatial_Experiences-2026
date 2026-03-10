@@ -202,6 +202,44 @@ echo "    POWER_OFF_ON_HALT=1      (Pi cuts 5V on halt -> X1201 enters standby)"
 echo "    PSU_MAX_CURRENT=5000     (suppress 5A warning)"
 echo ""
 
+# ── Disk space hardening ──
+
+echo ""
+echo "--- Disk space hardening ---"
+
+# Cap journald log size
+JOURNALD_CONF="/etc/systemd/journald.conf"
+if [ -f "$JOURNALD_CONF" ]; then
+    for key_val in "SystemMaxUse=50M" "RuntimeMaxUse=20M"; do
+        key="${key_val%%=*}"
+        if grep -q "^${key}=" "$JOURNALD_CONF" 2>/dev/null; then
+            sudo sed -i "s/^${key}=.*/${key_val}/" "$JOURNALD_CONF"
+        elif grep -q "^#${key}=" "$JOURNALD_CONF" 2>/dev/null; then
+            sudo sed -i "s/^#${key}=.*/${key_val}/" "$JOURNALD_CONF"
+        else
+            sudo sh -c "echo '${key_val}' >> $JOURNALD_CONF"
+        fi
+    done
+    echo "  Capped journald: SystemMaxUse=50M, RuntimeMaxUse=20M"
+fi
+
+# Disable core dumps (a single Chromium/Kismet crash can drop hundreds of MB)
+COREDUMP_CONF="/etc/sysctl.d/50-no-coredump.conf"
+if [ ! -f "$COREDUMP_CONF" ]; then
+    sudo sh -c "echo 'kernel.core_pattern=/dev/null' > $COREDUMP_CONF"
+    sudo sysctl -p "$COREDUMP_CONF" 2>/dev/null || true
+    echo "  Disabled core dumps (kernel.core_pattern=/dev/null)"
+else
+    echo "  Core dumps already disabled"
+fi
+
+# Enable weekly apt cache cleanup
+if ! systemctl is-enabled apt-daily.timer >/dev/null 2>&1; then
+    sudo systemctl enable apt-daily.timer 2>/dev/null || true
+fi
+sudo apt clean 2>/dev/null || true
+echo "  Cleaned apt cache"
+
 echo ""
 echo "=== Done. Services will start on next boot. ==="
 echo ""

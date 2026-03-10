@@ -51,4 +51,6 @@ exec chromium \
   --password-store=basic \
   --disable-gpu-video-decode \
   --disable-software-rasterizer \
+  --disk-cache-size=52428800 \
+  --disable-crash-reporter \
   "${EXTRA_FLAGS[@]}"

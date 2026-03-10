@@ -14,6 +14,7 @@ Designed to run as a systemd service (shadow-power.service).
 Requires: gpiod, smbus2
 """
 import os
+import shutil
 import struct
 import sys
 import time
@@ -49,6 +50,15 @@ POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "5"))
 # (avoids false triggers from transient dips)
 TRIGGER_COUNT = int(os.environ.get("TRIGGER_COUNT", "3"))
 
+# Disk usage: shutdown if root filesystem free space drops below this (MB)
+DISK_CRITICAL_MB = int(os.environ.get("DISK_CRITICAL_MB", "100"))
+
+# Disk cleanup paths (deleted before shutdown to free space for clean halt)
+DISK_CLEANUP_GLOBS = [
+    "/root/.kismet/*.kismet",
+    "/Kismet-*.kismet",
+]
+
 
 # ---------------------------------------------------------------------------
 # Battery fuel gauge (MAX17040 family @ 0x36)
@@ -83,6 +93,28 @@ def pld_setup():
 def pld_read(line):
     """Return True if AC power is connected, False if on battery."""
     return line.get_value() == 1
+
+
+# ---------------------------------------------------------------------------
+# Disk space watchdog
+# ---------------------------------------------------------------------------
+
+def disk_free_mb(path="/"):
+    """Return free space on the filesystem containing *path*, in MB."""
+    st = shutil.disk_usage(path)
+    return st.free // (1024 * 1024)
+
+
+def disk_cleanup():
+    """Best-effort removal of known large disposable files."""
+    import glob
+    for pattern in DISK_CLEANUP_GLOBS:
+        for f in glob.glob(pattern):
+            try:
+                os.remove(f)
+                print(f"[POWER] Cleaned up {f}", flush=True)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +213,22 @@ def main():
                 print(f"[POWER] AC lost + low SOC: {soc}% <= {SHUTDOWN_SOC}%",
                       flush=True)
                 should_shutdown = True
+
+            # Disk space check
+            free_mb = disk_free_mb()
+            if free_mb < DISK_CRITICAL_MB:
+                print(f"[POWER] CRITICAL disk: {free_mb}MB free < {DISK_CRITICAL_MB}MB",
+                      flush=True)
+                disk_cleanup()
+                # Re-check after cleanup
+                free_mb = disk_free_mb()
+                if free_mb < DISK_CRITICAL_MB:
+                    print(f"[POWER] Still critical after cleanup: {free_mb}MB",
+                          flush=True)
+                    should_shutdown = True
+                else:
+                    print(f"[POWER] Cleanup recovered space: {free_mb}MB free",
+                          flush=True)
 
             if should_shutdown:
                 low_count += 1
