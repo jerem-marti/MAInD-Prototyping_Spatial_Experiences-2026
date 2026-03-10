@@ -50,4 +50,5 @@ exec chromium \
   --password-store=basic \
   --disable-gpu-video-decode \
   --disable-software-rasterizer \
+  --allow-file-access-from-files \
   "${EXTRA_FLAGS[@]}"

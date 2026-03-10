@@ -102,7 +102,6 @@
         (function () {
             const BACKEND_URL = 'http://localhost:8080';
             const POLL_INTERVAL = 1500;
-            const MAX_ATTEMPTS = 60;
             const statusEl = document.querySelector('.status');
             let attempts = 0;
 
@@ -114,31 +113,23 @@
                 attempts++;
                 updateStatus('Connecting to backend\u2026 (' + attempts + ')');
 
-                fetch(BACKEND_URL, { mode: 'no-cors', cache: 'no-store' })
-                    .then(function () {
-                        // no-cors gives opaque response, verify with a real request
-                        return fetch(BACKEND_URL, { cache: 'no-store' });
-                    })
-                    .then(function (res) {
-                        if (res.ok) {
-                            updateStatus('Backend ready \u2014 launching');
-                            setTimeout(function () {
-                                window.location.replace(BACKEND_URL);
-                            }, 300);
-                        } else {
-                            scheduleNext();
-                        }
-                    })
-                    .catch(function () {
-                        scheduleNext();
-                    });
+                var xhr = new XMLHttpRequest();
+                xhr.open('HEAD', BACKEND_URL, true);
+                xhr.timeout = 3000;
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState === 4 && xhr.status > 0) {
+                        updateStatus('Backend ready \u2014 launching');
+                        setTimeout(function () {
+                            window.location.replace(BACKEND_URL);
+                        }, 300);
+                    }
+                };
+                xhr.ontimeout = function () { scheduleNext(); };
+                xhr.onerror = function () { scheduleNext(); };
+                xhr.send();
             }
 
             function scheduleNext() {
-                if (attempts >= MAX_ATTEMPTS) {
-                    updateStatus('Backend unreachable \u2014 retrying');
-                    attempts = 0;
-                }
                 setTimeout(poll, POLL_INTERVAL);
             }
 
