@@ -38,20 +38,31 @@
             gap: 32px;
         }
 
+        .brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
         .title {
             font-family: 'Orbitron', sans-serif;
-            font-size: 42px;
-            font-weight: 700;
-            letter-spacing: 12px;
+            font-size: 84px;
+            font-weight: 900;
             color: #FF6103;
             text-transform: uppercase;
         }
 
         .subtitle {
-            font-size: 10px;
-            letter-spacing: 3px;
-            color: #706E6C;
+            width: 100%;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 6px;
+            text-indent: 18px;
+            color: #B0AEA8;
             text-transform: uppercase;
+            text-align: center;
         }
 
         /* Animated ring spinner */
@@ -92,8 +103,10 @@
 </head>
 <body>
     <div class="splash">
-        <div class="title">ELEN</div>
-        <div class="subtitle">ELectronic ENtities</div>
+        <div class="brand">
+            <div class="title">ELEN</div>
+            <div class="subtitle">ELectronic ENtities</div>
+        </div>
         <div class="spinner"></div>
         <div class="status"><span class="status-dot"></span>Initializing system</div>
     </div>
