@@ -33,32 +33,40 @@ for unit in shadow-kismet shadow-reducer shadow-backend; do
     echo "  Enabled $unit"
 done
 
-# ── Kiosk (XDG autostart — launches with the desktop session) ──
+# ── Kiosk (lxsession autostart — launches with the desktop) ──
 
-AUTOSTART_DIR="$HOME/.config/autostart"
-mkdir -p "$AUTOSTART_DIR"
+# Detect the active lxsession profile: use /etc/xdg/lxsession/* as source of truth
+SESSION_NAME=""
+for candidate in rpd-x LXDE-pi LXDE; do
+    if [ -d "/etc/xdg/lxsession/$candidate" ]; then
+        SESSION_NAME="$candidate"
+        break
+    fi
+done
 
-echo "  Installing shadow-kiosk.desktop (XDG autostart)"
-install_template "$SYSTEMD_DIR/shadow-kiosk.desktop" "$AUTOSTART_DIR/shadow-kiosk.desktop"
-
-# Also add to LXDE autostart file (Raspberry Pi OS uses lxsession)
-LXDE_AUTOSTART="$HOME/.config/lxsession/LXDE-pi/autostart"
 KIOSK_CMD="@bash ${DEPLOY_DIR}/scripts/kiosk.sh http://localhost:8080"
-if [ -d "$(dirname "$LXDE_AUTOSTART")" ] || [ -f "$LXDE_AUTOSTART" ]; then
-    if ! grep -qF "kiosk.sh" "$LXDE_AUTOSTART" 2>/dev/null; then
-        echo "$KIOSK_CMD" >> "$LXDE_AUTOSTART"
-        echo "  Added kiosk to LXDE autostart"
+
+if [ -n "$SESSION_NAME" ]; then
+    USER_AUTOSTART="$HOME/.config/lxsession/$SESSION_NAME/autostart"
+    SYS_AUTOSTART="/etc/xdg/lxsession/$SESSION_NAME/autostart"
+
+    mkdir -p "$(dirname "$USER_AUTOSTART")"
+
+    # If user override doesn't exist yet, copy system default first
+    if [ ! -f "$USER_AUTOSTART" ] && [ -f "$SYS_AUTOSTART" ]; then
+        cp "$SYS_AUTOSTART" "$USER_AUTOSTART"
+    fi
+
+    # Append kiosk entry if not already there
+    if ! grep -qF "kiosk.sh" "$USER_AUTOSTART" 2>/dev/null; then
+        echo "$KIOSK_CMD" >> "$USER_AUTOSTART"
+        echo "  Added kiosk to lxsession/$SESSION_NAME/autostart"
     else
-        echo "  LXDE autostart already has kiosk entry"
+        echo "  lxsession/$SESSION_NAME/autostart already has kiosk entry"
     fi
 else
-    # Create LXDE autostart from system default + kiosk line
-    mkdir -p "$(dirname "$LXDE_AUTOSTART")"
-    if [ -f /etc/xdg/lxsession/LXDE-pi/autostart ]; then
-        cp /etc/xdg/lxsession/LXDE-pi/autostart "$LXDE_AUTOSTART"
-    fi
-    echo "$KIOSK_CMD" >> "$LXDE_AUTOSTART"
-    echo "  Created LXDE autostart with kiosk entry"
+    echo "  WARNING: no lxsession profile found, skipping desktop autostart"
+    echo "  You may need to add the kiosk manually to your session autostart"
 fi
 
 # Clean up old systemd user service if present
@@ -75,7 +83,7 @@ echo ""
 echo "=== Done. Services will start on next boot. ==="
 echo ""
 echo "  Kismet, Reducer, Backend: systemd (auto-start at boot)"
-echo "  Kiosk browser:            LXDE/XDG autostart (auto-start with desktop)"
+echo "  Kiosk browser:            lxsession/${SESSION_NAME}/autostart"
 echo ""
 echo "Manual control:"
 echo "  sudo systemctl start shadow-kismet shadow-reducer shadow-backend"

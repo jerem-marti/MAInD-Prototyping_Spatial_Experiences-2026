@@ -4,7 +4,36 @@
 
 - Pi set up per [PI_SETUP.md](PI_SETUP.md)
 - Dependencies installed via `scripts/install_pi_deps.sh`
+- Services installed via `scripts/install_services.sh`
 - `config/shadow.env` created from `config/shadow.env.example`
+
+## Production (auto-start on boot)
+
+After running `scripts/install_services.sh` (see [DEPLOYMENT_PI.md](DEPLOYMENT_PI.md)), everything starts automatically on boot:
+
+1. **systemd** starts `shadow-kismet`, `shadow-reducer`, `shadow-backend`
+2. **lxsession** starts the desktop, then launches Chromium via `scripts/kiosk.sh`
+3. The kiosk waits for the backend, then opens fullscreen
+
+Check status:
+
+```bash
+sudo systemctl status shadow-kismet shadow-reducer shadow-backend
+```
+
+Logs:
+
+```bash
+journalctl -u shadow-kismet -f
+journalctl -u shadow-reducer -f
+journalctl -u shadow-backend -f
+```
+
+Restart everything (including the kiosk browser):
+
+```bash
+bash scripts/deploy/restart_services.sh
+```
 
 ## Quick Start (manual)
 
@@ -30,10 +59,10 @@ curl -sS --user 'shadow:yourpass' http://127.0.0.1:2501/system/status.json | jq 
 python3 src/reducer/reducer.py
 ```
 
-Check that `ghost_state.json` is being written (path depends on your setup -- default `~/shadow_creatures/state/`, or `$GHOST_STATE_PATH` from env):
+Check that `ghost_state.json` is being written:
 
 ```bash
-watch -n1 cat ~/shadow_creatures/state/ghost_state.json
+watch -n1 cat state/ghost_state.json
 ```
 
 ### 3. Start the Backend
@@ -44,29 +73,13 @@ python3 src/backend/server.py
 
 ### 4. Open the Overlay
 
-Open Chromium on the Pi using the kiosk script:
-
 ```bash
-DISPLAY=:0 bash scripts/kiosk.sh
+bash scripts/kiosk.sh
 ```
 
-Or manually with the required GPU flags:
+The script waits for the backend to respond, sets `DISPLAY=:0` if needed, and launches Chromium in fullscreen kiosk mode.
 
-```bash
-DISPLAY=:0 chromium \
-  --app=http://localhost:8080 \
-  --start-fullscreen \
-  --kiosk \
-  --noerrdialogs \
-  --disable-infobars \
-  --password-store=basic \
-  --disable-gpu-video-decode \
-  --disable-software-rasterizer
-```
-
-> **Note:** `--disable-gpu-video-decode` prevents an intermittent GPU crash
-> (`SharedImageBackingFactory` / `GPU state invalid`) that kills WebGL
-> contexts on the Pi's VideoCore GPU.
+> **Note:** `--disable-gpu-video-decode` (included in the script) prevents an intermittent GPU crash (`SharedImageBackingFactory` / `GPU state invalid`) that kills WebGL contexts on the Pi's VideoCore GPU.
 
 ## Quick Start (tmux)
 
@@ -74,27 +87,8 @@ DISPLAY=:0 chromium \
 bash scripts/run_dev_tmux.sh
 ```
 
-This opens a tmux session with three panes: Kismet, Reducer, Backend.
-
-## Systemd (production)
-
-If systemd services are installed (see [DEPLOYMENT_PI.md](DEPLOYMENT_PI.md)):
+This opens a tmux session with three panes: Kismet, Reducer, Backend. Then launch the kiosk separately:
 
 ```bash
-sudo systemctl start shadow-reducer
-sudo systemctl start shadow-backend
-```
-
-Check status:
-
-```bash
-sudo systemctl status shadow-reducer
-sudo systemctl status shadow-backend
-```
-
-Logs:
-
-```bash
-journalctl -u shadow-backend -f
-journalctl -u shadow-reducer -f
+bash scripts/kiosk.sh
 ```
