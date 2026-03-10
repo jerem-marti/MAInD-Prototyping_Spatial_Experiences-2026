@@ -78,6 +78,9 @@ async function uploadSnapshot() {
     try {
         _showSnapshotFeedback('loading', 'REGISTERING SNAPSHOT');
 
+        // Yield to browser so the feedback overlay is actually painted
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
         // 1. Trigger Live Photo post-capture recording (collects 1.5s more)
         const livePromise = LivePhotoCapture.trigger();
 
