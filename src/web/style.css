@@ -39,7 +39,7 @@
     /* Text -- light on dark */
     --text-primary: #FEFDFB;
     --text-secondary: #B0AEA8;
-    --text-tertiary: #706E6C;
+    --text-tertiary: #908E8C;
     --text-accent: #FF6103;
 
     /* Accent */
@@ -243,13 +243,13 @@ body {
 
 .btn-action:hover {
     background: rgba(255, 97, 3, 0.12);
-    color: #FEFDFB;
+    color: var(--text-primary);
 }
 
 .btn-action.active {
     background: rgba(255, 97, 3, 0.18);
-    color: #FEFDFB;
-    border-color: #FF6103;
+    color: var(--text-primary);
+    border-color: var(--accent-signal);
 }
 
 .btn-icon {
@@ -260,6 +260,8 @@ body {
     font-size: 14px;
     width: 22px;
     height: 22px;
+    min-width: 44px;
+    min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -344,7 +346,8 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm) var(--space-sm);
+    min-height: 44px;
     border: 1px solid transparent;
     cursor: pointer;
     transition: all 0.12s;
@@ -635,7 +638,7 @@ body {
 /* -- Status Bar ------------------------------------- */
 #status-bar {
     height: var(--status-height);
-    background: rgba(20, 20, 24, 0.85);
+    background: var(--bg-secondary);
     border-top: 1px solid var(--border-subtle);
     display: flex;
     align-items: center;
@@ -672,45 +675,28 @@ body {
     color: var(--text-primary);
 }
 
-/* -- Sidebar Toggle Button (bottom-left) ------------ */
-.sidebar-toggle-btn {
+/* -- Bottom Action Bar ------------------------------ */
+#action-bar {
     position: absolute;
     bottom: calc(var(--status-height) + var(--space-md));
-    left: 80px;
-    padding: var(--space-sm) var(--space-xl);
-    background: rgba(255, 97, 3, 0.15);
-    border: 1px solid var(--accent-signal);
-    color: var(--accent-signal);
-    font-family: var(--font-ui);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    cursor: pointer;
-    transition: all 0.2s;
-    z-index: 20;
-}
-
-.sidebar-toggle-btn:hover {
-    background: rgba(255, 97, 3, 0.25);
-    color: #FEFDFB;
-    border-color: #FF6103;
-}
-
-.sidebar-toggle-btn:active {
-    background: rgba(255, 97, 3, 0.35);
-    transform: scale(0.97);
-}
-
-.sidebar-toggle-btn.active {
-    background: rgba(255, 97, 3, 0.3);
-    color: #FEFDFB;
-}
-
-/* -- Capture Button (bottom-right) ------------------ */
-.capture-btn {
-    position: absolute;
-    bottom: calc(var(--status-height) + var(--space-md));
+    left: var(--space-lg);
     right: var(--space-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    z-index: 20;
+    pointer-events: none;
+}
+
+#action-bar > * {
+    pointer-events: auto;
+}
+
+.action-bar-spacer {
+    flex: 1;
+}
+
+.action-btn {
     padding: var(--space-sm) var(--space-xl);
     background: rgba(255, 97, 3, 0.15);
     border: 1px solid var(--accent-signal);
@@ -721,53 +707,23 @@ body {
     letter-spacing: 2px;
     cursor: pointer;
     transition: all 0.2s;
-    z-index: 20;
 }
 
-.capture-btn:hover {
+.action-btn:hover {
     background: rgba(255, 97, 3, 0.25);
-    color: #FEFDFB;
-    border-color: #FF6103;
+    color: var(--text-primary);
+    border-color: var(--accent-signal);
 }
 
-.capture-btn:active {
+.action-btn:active {
     background: rgba(255, 97, 3, 0.35);
     transform: scale(0.97);
 }
 
-/* -- Gallery Toggle Button ----------------------------- */
-.gallery-toggle-btn {
-    position: absolute;
-    bottom: calc(var(--status-height) + var(--space-md));
-    right: 140px;
-    padding: var(--space-sm) var(--space-xl);
-    background: rgba(255, 97, 3, 0.15);
-    border: 1px solid var(--accent-signal);
-    color: var(--accent-signal);
-    font-family: var(--font-ui);
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 2px;
-    cursor: pointer;
-    transition: all 0.2s;
-    z-index: 20;
-}
-
-.gallery-toggle-btn:hover {
-    background: rgba(255, 97, 3, 0.25);
-    color: #FEFDFB;
-    border-color: #FF6103;
-}
-
-.gallery-toggle-btn:active {
-    background: rgba(255, 97, 3, 0.35);
-    transform: scale(0.97);
-}
-
-.gallery-toggle-btn.active {
-    background: rgba(255, 97, 3, 0.35);
-    color: #FEFDFB;
-    border-color: #FF6103;
+.action-btn.active {
+    background: rgba(255, 97, 3, 0.3);
+    color: var(--text-primary);
+    border-color: var(--accent-signal);
 }
 
 /* -- Checkbox Labels -------------------------------- */
@@ -775,6 +731,8 @@ body {
     display: flex;
     align-items: center;
     cursor: pointer;
+    min-height: 44px;
+    padding: 0 var(--space-sm);
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -809,6 +767,16 @@ body {
     color: var(--text-primary);
 }
 
+/* -- Focus Visible (keyboard accessibility) --------- */
+:focus-visible {
+    outline: 2px solid var(--accent-signal);
+    outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
 /* -- Splash Overlay --------------------------------- */
 #splash {
     position: fixed;
@@ -819,7 +787,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 32px;
-    background: #0a0a0c;
+    background: var(--canvas-bg);
     transition: opacity 0.6s ease;
 }
 #splash.hidden {
@@ -827,17 +795,17 @@ body {
     pointer-events: none;
 }
 .splash-title {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: 6px;
-    color: var(--text-primary);
+    font-family: var(--font-title);
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: 12px;
+    color: var(--accent-signal);
     text-transform: uppercase;
 }
 .splash-subtitle {
     font-size: 10px;
     letter-spacing: 3px;
-    color: #706E6C;
+    color: var(--text-tertiary);
     text-transform: uppercase;
 }
 .splash-spinner {
@@ -854,7 +822,7 @@ body {
 .splash-status {
     font-size: 9px;
     letter-spacing: 2px;
-    color: #B0AEA8;
+    color: var(--text-secondary);
     text-transform: uppercase;
 }
 .splash-dot {

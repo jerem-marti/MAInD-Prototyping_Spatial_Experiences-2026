@@ -73,7 +73,7 @@
                     </div>
                     <button class="btn btn-action" id="btn-orientation-toggle">INPUT: MOUSE</button>
                     <button class="btn btn-action" id="btn-reset-north">RESET NORTH</button>
-                    <div style="font-size: 9px; color: #605E5C; padding: 4px 0;">Toggle between mouse drag and gyroscope/IMU</div>
+                    <div style="font-size: 9px; color: #908E8C; padding: 4px 0;">Toggle between mouse drag and gyroscope/IMU</div>
                 </div>
             </section>
 
@@ -160,13 +160,14 @@
             </div>
             <!-- Hidden MJPEG feed image (used as texture source) -->
             <img id="feed" style="display:none" crossorigin="anonymous">
-            <!-- Sidebar toggle button (bottom-left) -->
-            <button id="btn-sidebar-toggle" class="sidebar-toggle-btn">PANEL</button>
-            <!-- Capture button (bottom-right) -->
-            <button id="btn-capture" class="capture-btn">CAPTURE</button>
-            <!-- Gallery button (bottom, left of CAPTURE) -->
-            <button id="btn-gallery" class="gallery-toggle-btn">GALLERY</button>
             <div id="version-tag">vAtom</div>
+            <!-- Bottom action bar -->
+            <div id="action-bar">
+                <button id="btn-sidebar-toggle" class="action-btn">PANEL</button>
+                <div class="action-bar-spacer"></div>
+                <button id="btn-gallery" class="action-btn">GALLERY</button>
+                <button id="btn-capture" class="action-btn">CAPTURE</button>
+            </div>
             <div id="status-bar">
                 <span id="status-resolution">&mdash;</span>
                 <span id="status-layers">0 layers</span>
