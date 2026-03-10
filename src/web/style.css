@@ -86,6 +86,7 @@ body {
     font-size: 11px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    cursor: none;
 }
 
 /* -- App Layout ------------------------------------- */
@@ -610,11 +611,11 @@ body {
 }
 
 #canvas-container.placing {
-    cursor: crosshair;
+    cursor: none;
 }
 
 #canvas-container.deforming {
-    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="14" stroke="rgba(255,97,3,0.8)" stroke-width="2" fill="none"/></svg>') 16 16, move;
+    cursor: none;
 }
 
 #version-tag {
