@@ -901,6 +901,7 @@ body.no-debug #splash {
 }
 
 body.no-debug #battery-indicator {
-    top: var(--space-md) !important;
-    right: var(--space-lg) !important;
+    position: fixed !important;
+    top: 12px !important;
+    right: 16px !important;
 }
