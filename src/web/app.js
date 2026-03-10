@@ -223,6 +223,13 @@ function connectWebSocket() {
                 return;
             }
 
+            if (msg.type === 'debug_toggle') {
+                window.ELEN_DEBUG = !window.ELEN_DEBUG;
+                document.body.classList.toggle('no-debug', !window.ELEN_DEBUG);
+                console.log('[App] Debug mode ' + (window.ELEN_DEBUG ? 'ON' : 'OFF'));
+                return;
+            }
+
             if (msg.type === 'state') {
                 if (!State.paused) Telemetry.ingestState(msg.state);
             }
