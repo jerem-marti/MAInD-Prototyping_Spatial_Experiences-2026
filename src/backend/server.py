@@ -497,27 +497,26 @@ def setup_gpio(loop):
     # Store on app_state to prevent garbage collection — gpiozero Button
     # objects deregister GPIO callbacks when GC'd (close() is called).
     app_state.btn_snap = Button(BTN_SNAPSHOT, pull_up=True, bounce_time=0.05)
-    app_state.btn_mode = Button(BTN_MODE, pull_up=True, bounce_time=0.05,
-                                hold_time=5, hold_repeat=False)
+    app_state.btn_mode = Button(BTN_MODE, pull_up=True, bounce_time=0.05)
 
     def on_snap():
         asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "snapshot"}), loop)
 
-    # Mode button: short press = gallery toggle, 5s hold = debug toggle
-    app_state._mode_held = False
+    # Mode button: immediate gallery toggle on press, 5s hold = debug toggle on release
+    app_state._mode_press_time = 0.0
 
-    def on_mode_held():
-        app_state._mode_held = True
-        print("[GPIO] Mode button held 5s — debug toggle", flush=True)
-        asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "debug_toggle"}), loop)
+    def on_mode_pressed():
+        app_state._mode_press_time = time.monotonic()
+        asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "gallery_toggle"}), loop)
 
     def on_mode_released():
-        if not app_state._mode_held:
-            asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "gallery_toggle"}), loop)
-        app_state._mode_held = False
+        held = time.monotonic() - app_state._mode_press_time
+        if held >= 5.0:
+            print(f"[GPIO] Mode held {held:.1f}s — debug toggle", flush=True)
+            asyncio.run_coroutine_threadsafe(app_state.broadcast({"type": "debug_toggle"}), loop)
 
     app_state.btn_snap.when_pressed = on_snap
-    app_state.btn_mode.when_held = on_mode_held
+    app_state.btn_mode.when_pressed = on_mode_pressed
     app_state.btn_mode.when_released = on_mode_released
 
 async def on_startup(app):
