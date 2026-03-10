@@ -163,6 +163,16 @@
             <!-- Hidden MJPEG feed image (used as texture source) -->
             <img id="feed" style="display:none" crossorigin="anonymous">
             <div id="version-tag">vAtom</div>
+            <!-- Snapshot feedback overlay (centered) -->
+            <div id="snapshot-feedback" class="snapshot-feedback hidden">
+                <div class="snapshot-feedback-spinner"></div>
+                <svg class="snapshot-feedback-check" viewBox="0 0 24 24" width="32" height="32">
+                    <path d="M4.5 12.75l6 6 9-13.5" fill="none" stroke="currentColor"
+                          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="snapshot-feedback-text">REGISTERING SNAPSHOT</span>
+            </div>
+
             <!-- Battery indicator (top-right) -->
             <div id="battery-indicator">
                 <svg id="battery-icon" viewBox="0 0 24 12" width="24" height="12">

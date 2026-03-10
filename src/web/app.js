@@ -24,6 +24,43 @@ function wsSend(obj) {
 
 /* -- Snapshot Flow -- */
 
+let _snapFeedbackTimer = null;
+
+function _showSnapshotFeedback(state, text) {
+    const el = document.getElementById('snapshot-feedback');
+    if (!el) return;
+    const textEl = el.querySelector('.snapshot-feedback-text');
+
+    clearTimeout(_snapFeedbackTimer);
+
+    // Reset classes
+    el.classList.remove('hidden', 'visible', 'success', 'error');
+    if (textEl) textEl.textContent = text;
+
+    if (state === 'loading') {
+        // Show with spinner
+        void el.offsetWidth; // force reflow
+        el.classList.add('visible');
+    } else if (state === 'success') {
+        el.classList.add('visible', 'success');
+        _snapFeedbackTimer = setTimeout(() => _hideSnapshotFeedback(), 1500);
+    } else if (state === 'error') {
+        el.classList.add('visible', 'error');
+        _snapFeedbackTimer = setTimeout(() => _hideSnapshotFeedback(), 2500);
+    }
+}
+
+function _hideSnapshotFeedback() {
+    const el = document.getElementById('snapshot-feedback');
+    if (!el) return;
+    el.classList.remove('visible');
+    // After fade-out transition, hide completely
+    setTimeout(() => {
+        el.classList.add('hidden');
+        el.classList.remove('success', 'error');
+    }, 350);
+}
+
 function captureSnapshotDataURL() {
     const exportCanvas = Renderer.capture();
     return exportCanvas.toDataURL('image/png');
@@ -39,6 +76,8 @@ function _blobToBase64(blob) {
 
 async function uploadSnapshot() {
     try {
+        _showSnapshotFeedback('loading', 'REGISTERING SNAPSHOT');
+
         // 1. Trigger Live Photo post-capture recording (collects 1.5s more)
         const livePromise = LivePhotoCapture.trigger();
 
@@ -61,8 +100,10 @@ async function uploadSnapshot() {
             body: JSON.stringify(payload)
         });
 
+        _showSnapshotFeedback('success', 'SNAPSHOT SAVED');
         console.log('[App] Snapshot uploaded' + (liveBlob ? ' (with Live Photo)' : ''));
     } catch (e) {
+        _showSnapshotFeedback('error', 'SNAPSHOT FAILED');
         console.error('[App] Snapshot upload failed:', e);
     }
 }
