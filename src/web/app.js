@@ -206,32 +206,40 @@ function initApp() {
     console.log('[App] Shadow Creatures — Ghost Signal Instrument vAtom');
     console.log('[App] Initializing modules...');
 
-    // Init telemetry (with synthetic fallback data)
-    Telemetry.init();
-
-    // Init ImageDeformPass (separate WebGL context for color sampling)
-    ImageDeformPass.init();
-
-    // Init UI bindings and default layers
-    UIManager.init();
-
-    // Init 360 orientation (IMU WebSocket + mouse drag)
-    OrientationManager.init();
-
-    // Start MJPEG camera feed
-    Camera.start();
-
-    // Init renderer and start render loop
-    Renderer.init();
-    requestAnimationFrame((t) => Renderer.loop(t));
-
-    // Init Live Photo capture (rolling video buffer from main canvas)
-    LivePhotoCapture.init(UI.canvas);
-
-    // Connect to backend WebSocket
+    // Connect WebSocket first — also dismisses splash on connect.
+    // Must run before heavy inits so a WebGL / camera error can't block it.
     const splashStatus = document.querySelector('.splash-status');
     if (splashStatus) splashStatus.innerHTML = '<span class="splash-dot"></span>Connecting';
     connectWebSocket();
+
+    // Fallback: dismiss splash after 5s even if WebSocket hasn't connected yet
+    setTimeout(dismissSplash, 5000);
+
+    try {
+        // Init telemetry (with synthetic fallback data)
+        Telemetry.init();
+
+        // Init ImageDeformPass (separate WebGL context for color sampling)
+        ImageDeformPass.init();
+
+        // Init UI bindings and default layers
+        UIManager.init();
+
+        // Init 360 orientation (IMU WebSocket + mouse drag)
+        OrientationManager.init();
+
+        // Start MJPEG camera feed
+        Camera.start();
+
+        // Init renderer and start render loop
+        Renderer.init();
+        requestAnimationFrame((t) => Renderer.loop(t));
+
+        // Init Live Photo capture (rolling video buffer from main canvas)
+        LivePhotoCapture.init(UI.canvas);
+    } catch (e) {
+        console.error('[App] Module init error:', e);
+    }
 
     console.log('[App] All modules initialized');
 }
