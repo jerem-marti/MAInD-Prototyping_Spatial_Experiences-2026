@@ -890,3 +890,12 @@ body {
     0%, 100% { opacity: 0.3; }
     50% { opacity: 1; }
 }
+
+/* ── No-debug mode: hide all chrome except battery indicator ────────── */
+body.no-debug #sidebar,
+body.no-debug #action-bar,
+body.no-debug #status-bar,
+body.no-debug #version-tag,
+body.no-debug #splash {
+    display: none !important;
+}

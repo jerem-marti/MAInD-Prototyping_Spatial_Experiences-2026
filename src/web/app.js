@@ -261,6 +261,11 @@ function connectWebSocket() {
 /* -- Initialization -- */
 
 function initApp() {
+    // Apply no-debug mode (hides all UI chrome except battery indicator)
+    if (!window.ELEN_DEBUG) {
+        document.body.classList.add('no-debug');
+    }
+
     console.log('[App] Shadow Creatures — Ghost Signal Instrument vAtom');
     console.log('[App] Initializing modules...');
 

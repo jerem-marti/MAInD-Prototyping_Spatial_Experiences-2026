@@ -32,6 +32,12 @@ const Gallery = {
 
     async init() {
         this._cacheEls();
+
+        // Hide close button in non-debug mode
+        if (!window.ELEN_DEBUG) {
+            this.els.btnClose.style.display = 'none';
+        }
+
         // Register battery listener early — before async loadSnapshots,
         // so the postMessage from the parent on iframe load is not missed.
         var self = this;
