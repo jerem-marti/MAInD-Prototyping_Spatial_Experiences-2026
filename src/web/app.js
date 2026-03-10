@@ -212,8 +212,8 @@ function initApp() {
     if (splashStatus) splashStatus.innerHTML = '<span class="splash-dot"></span>Connecting';
     connectWebSocket();
 
-    // Fallback: dismiss splash after 5s even if WebSocket hasn't connected yet
-    setTimeout(dismissSplash, 5000);
+    // Fallback: dismiss splash after 10s even if WebSocket hasn't connected yet
+    setTimeout(dismissSplash, 10000);
 
     try {
         // Init telemetry (with synthetic fallback data)
