@@ -57,6 +57,12 @@ if [ -n "$SESSION_NAME" ]; then
         cp "$SYS_AUTOSTART" "$USER_AUTOSTART"
     fi
 
+    # Remove the LXDE panel (taskbar) from autostart so the desktop is clean
+    if grep -qF "@lxpanel" "$USER_AUTOSTART" 2>/dev/null; then
+        sed -i '/@lxpanel/d' "$USER_AUTOSTART"
+        echo "  Removed lxpanel from autostart (hide taskbar)"
+    fi
+
     # Append kiosk entry if not already there
     if ! grep -qF "kiosk.sh" "$USER_AUTOSTART" 2>/dev/null; then
         echo "$KIOSK_CMD" >> "$USER_AUTOSTART"
@@ -79,11 +85,52 @@ if [ -f "$OLD_UNIT" ]; then
     systemctl --user daemon-reload 2>/dev/null || true
 fi
 
+# ── Desktop cleanup (hide OS GUI for kiosk appearance) ──
+
+echo ""
+echo "--- Desktop kiosk cleanup ---"
+
+# Install unclutter to hide the mouse cursor system-wide
+if ! command -v unclutter >/dev/null 2>&1; then
+    echo "  Installing unclutter (hides mouse cursor)..."
+    sudo apt-get install -y unclutter-xfixes 2>/dev/null \
+        || sudo apt-get install -y unclutter 2>/dev/null \
+        || echo "  WARNING: could not install unclutter"
+fi
+
+# Set PCManFM desktop to black background with no icons (LXDE desktop manager)
+PCMANFM_CONF_DIR="$HOME/.config/pcmanfm/$SESSION_NAME"
+PCMANFM_CONF="$PCMANFM_CONF_DIR/desktop-items-0.conf"
+
+if [ -n "$SESSION_NAME" ]; then
+    mkdir -p "$PCMANFM_CONF_DIR"
+    cat > "$PCMANFM_CONF" << 'DESKEOF'
+[*]
+wallpaper_mode=color
+wallpaper_common=1
+desktop_bg=#0a0a0c
+desktop_fg=#0a0a0c
+show_documents=0
+show_trash=0
+show_mounts=0
+DESKEOF
+    echo "  Set desktop background to #0a0a0c (black), icons hidden"
+fi
+
+# Add unclutter to lxsession autostart if not already present
+if [ -n "$SESSION_NAME" ] && [ -f "$USER_AUTOSTART" ]; then
+    if ! grep -qF "unclutter" "$USER_AUTOSTART" 2>/dev/null; then
+        echo "@unclutter -idle 0.1 -root" >> "$USER_AUTOSTART"
+        echo "  Added unclutter to autostart (hides cursor)"
+    fi
+fi
+
 echo ""
 echo "=== Done. Services will start on next boot. ==="
 echo ""
 echo "  Kismet, Reducer, Backend: systemd (auto-start at boot)"
 echo "  Kiosk browser:            lxsession/${SESSION_NAME}/autostart"
+echo "  Desktop:                  black background, no panel, cursor hidden"
 echo ""
 echo "Manual control:"
 echo "  sudo systemctl start shadow-kismet shadow-reducer shadow-backend"

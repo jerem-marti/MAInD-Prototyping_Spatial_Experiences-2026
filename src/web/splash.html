@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow Creatures</title>
+    <style>
+        @font-face {
+            font-family: 'Orbitron';
+            src: url('Orbitron-VariableFont_wght.ttf') format('truetype');
+            font-weight: 100 900;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'Space Grotesk';
+            src: url('SpaceGrotesk-VariableFont_wght.ttf') format('truetype');
+            font-weight: 300 700;
+            font-style: normal;
+        }
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            background: #0a0a0c;
+            color: #FEFDFB;
+            font-family: 'Space Grotesk', sans-serif;
+            cursor: none;
+        }
+
+        .splash {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            gap: 32px;
+        }
+
+        .title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 6px;
+            color: #FEFDFB;
+            text-transform: uppercase;
+        }
+
+        .subtitle {
+            font-size: 10px;
+            letter-spacing: 3px;
+            color: #706E6C;
+            text-transform: uppercase;
+        }
+
+        /* Animated ring spinner */
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 2px solid rgba(255, 97, 3, 0.15);
+            border-top-color: #FF6103;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .status {
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: #B0AEA8;
+            text-transform: uppercase;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #FF6103;
+            margin-right: 8px;
+            animation: pulse-dot 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="splash">
+        <div class="title">Ghost Signal</div>
+        <div class="subtitle">Shadow Creatures</div>
+        <div class="spinner"></div>
+        <div class="status"><span class="status-dot"></span>Initializing system</div>
+    </div>
+
+    <script>
+        (function () {
+            const BACKEND_URL = 'http://localhost:8080';
+            const POLL_INTERVAL = 1500;
+            const MAX_ATTEMPTS = 60;
+            const statusEl = document.querySelector('.status');
+            let attempts = 0;
+
+            function updateStatus(msg) {
+                statusEl.innerHTML = '<span class="status-dot"></span>' + msg;
+            }
+
+            function poll() {
+                attempts++;
+                updateStatus('Connecting to backend\u2026 (' + attempts + ')');
+
+                fetch(BACKEND_URL, { mode: 'no-cors', cache: 'no-store' })
+                    .then(function () {
+                        // no-cors gives opaque response, verify with a real request
+                        return fetch(BACKEND_URL, { cache: 'no-store' });
+                    })
+                    .then(function (res) {
+                        if (res.ok) {
+                            updateStatus('Backend ready \u2014 launching');
+                            setTimeout(function () {
+                                window.location.replace(BACKEND_URL);
+                            }, 300);
+                        } else {
+                            scheduleNext();
+                        }
+                    })
+                    .catch(function () {
+                        scheduleNext();
+                    });
+            }
+
+            function scheduleNext() {
+                if (attempts >= MAX_ATTEMPTS) {
+                    updateStatus('Backend unreachable \u2014 retrying');
+                    attempts = 0;
+                }
+                setTimeout(poll, POLL_INTERVAL);
+            }
+
+            poll();
+        })();
+    </script>
+</body>
+</html>
