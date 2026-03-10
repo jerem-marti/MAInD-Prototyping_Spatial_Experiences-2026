@@ -5,7 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/kismet --no-ncurses -c wlan1:type=linuxwifi,name=wifiusb,channel_hop=false,channel=11 -c hci0:type=linuxbluetooth,name=bt0
+WorkingDirectory=/root
+ExecStart=/usr/bin/kismet --no-ncurses --no-logging -c wlan1:type=linuxwifi,name=wifiusb,channel_hop=false,channel=11 -c hci0:type=linuxbluetooth,name=bt0
 Restart=on-failure
 RestartSec=5
 
