@@ -899,9 +899,3 @@ body.no-debug #version-tag,
 body.no-debug #splash {
     display: none !important;
 }
-
-body.no-debug #battery-indicator {
-    position: fixed !important;
-    top: 12px !important;
-    right: 16px !important;
-}

@@ -316,10 +316,39 @@ const UIManager = {
             });
         }
 
-        // Gallery toggle button
+        // Gallery toggle button (long-press 5s toggles debug mode)
         const btnGallery = document.getElementById('btn-gallery');
         if (btnGallery) {
+            let _galleryPressTimer = null;
+            let _galleryDidLongPress = false;
+
+            const _startGalleryPress = () => {
+                _galleryDidLongPress = false;
+                _galleryPressTimer = setTimeout(() => {
+                    _galleryDidLongPress = true;
+                    window.ELEN_DEBUG = !window.ELEN_DEBUG;
+                    document.body.classList.toggle('no-debug', !window.ELEN_DEBUG);
+                    console.log('[UI] Debug mode ' + (window.ELEN_DEBUG ? 'ON' : 'OFF'));
+                }, 5000);
+            };
+
+            const _endGalleryPress = () => {
+                if (_galleryPressTimer) {
+                    clearTimeout(_galleryPressTimer);
+                    _galleryPressTimer = null;
+                }
+            };
+
+            btnGallery.addEventListener('mousedown', _startGalleryPress);
+            btnGallery.addEventListener('touchstart', _startGalleryPress, { passive: true });
+
+            btnGallery.addEventListener('mouseup', _endGalleryPress);
+            btnGallery.addEventListener('mouseleave', _endGalleryPress);
+            btnGallery.addEventListener('touchend', _endGalleryPress);
+            btnGallery.addEventListener('touchcancel', _endGalleryPress);
+
             btnGallery.addEventListener('click', () => {
+                if (_galleryDidLongPress) return;
                 if (typeof toggleGallery === 'function') {
                     toggleGallery();
                 }

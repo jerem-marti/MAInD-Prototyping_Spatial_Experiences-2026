@@ -149,7 +149,7 @@ window.addEventListener('message', function(ev) {
 /* -- Splash Screen -- */
 
 const _splashStart = Date.now();
-const _splashMinMs = 3000;
+const _splashMinMs = 5000;
 
 function dismissSplash() {
     const splash = document.getElementById('splash');
