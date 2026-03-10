@@ -2,23 +2,22 @@
 """
 X1201 UPS power monitor for Shadow Creatures.
 
+Pure monitoring service — no shutdown logic.
+Writes battery/AC state to a JSON file that the backend can read
+and broadcast over WebSocket.
+
 Monitors:
-  - AC power loss via GPIO 6 (PLD pin on gpiochip4)
+  - AC power status via GPIO 6 (PLD pin on gpiochip4)
   - Battery voltage / SOC via I2C fuel gauge (MAX17040 @ 0x36)
 
-Actions:
-  - On AC loss + battery below threshold: graceful shutdown
-  - On critical battery regardless of AC: graceful shutdown
-
 Designed to run as a systemd service (shadow-power.service).
-Requires: gpiod, smbus2
+Requires: python3-libgpiod, python3-smbus
 """
+import json
 import os
-import shutil
 import struct
 import sys
 import time
-from subprocess import call
 
 # ---------------------------------------------------------------------------
 # Configuration (overridable via environment)
@@ -30,34 +29,14 @@ PLD_PIN = int(os.environ.get("PLD_PIN", "6"))
 BAT_BUS = int(os.environ.get("BAT_BUS", "1"))
 BAT_ADDR = int(os.environ.get("BAT_ADDR", "0x36"), 0)
 
-# SOC threshold: shutdown if AC lost AND battery below this %
-SHUTDOWN_SOC = float(os.environ.get("SHUTDOWN_SOC", "15"))
-
-# Critical SOC: shutdown unconditionally (even on AC — gauge may be wrong)
-CRITICAL_SOC = float(os.environ.get("CRITICAL_SOC", "5"))
-
-# Voltage floor (V): shutdown if below this, as a safety net
-CRITICAL_VOLTAGE = float(os.environ.get("CRITICAL_VOLTAGE", "3.20"))
-
-# Seconds to wait after trigger before issuing shutdown
-# (gives services time to finish in-flight work)
-SHUTDOWN_DELAY = int(os.environ.get("SHUTDOWN_DELAY", "10"))
-
 # Polling interval (seconds)
 POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "5"))
 
-# How many consecutive low readings before triggering shutdown
-# (avoids false triggers from transient dips)
-TRIGGER_COUNT = int(os.environ.get("TRIGGER_COUNT", "3"))
-
-# Disk usage: shutdown if root filesystem free space drops below this (MB)
-DISK_CRITICAL_MB = int(os.environ.get("DISK_CRITICAL_MB", "100"))
-
-# Disk cleanup paths (deleted before shutdown to free space for clean halt)
-DISK_CLEANUP_GLOBS = [
-    "/root/.kismet/*.kismet",
-    "/Kismet-*.kismet",
-]
+# State file written each cycle (readable by backend / other services)
+STATE_FILE = os.environ.get(
+    "POWER_STATE_FILE",
+    os.path.join(os.path.dirname(__file__), "..", "state", "power_state.json"),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -141,40 +120,26 @@ def pld_close(handle):
 
 
 # ---------------------------------------------------------------------------
-# Disk space watchdog
+# State file
 # ---------------------------------------------------------------------------
 
-def disk_free_mb(path="/"):
-    """Return free space on the filesystem containing *path*, in MB."""
-    st = shutil.disk_usage(path)
-    return st.free // (1024 * 1024)
-
-
-def disk_cleanup():
-    """Best-effort removal of known large disposable files."""
-    import glob
-    for pattern in DISK_CLEANUP_GLOBS:
-        for f in glob.glob(pattern):
-            try:
-                os.remove(f)
-                print(f"[POWER] Cleaned up {f}", flush=True)
-            except OSError:
-                pass
-
-
-# ---------------------------------------------------------------------------
-# Graceful shutdown
-# ---------------------------------------------------------------------------
-
-def do_shutdown():
-    """Stop shadow services then power off."""
-    print("[POWER] Stopping shadow services...", flush=True)
-    call("sudo systemctl stop shadow-backend shadow-reducer shadow-kismet",
-         shell=True)
-    print(f"[POWER] Issuing shutdown in {SHUTDOWN_DELAY}s...", flush=True)
-    time.sleep(SHUTDOWN_DELAY)
-    call("sudo shutdown -h now", shell=True)
-    sys.exit(0)
+def write_state(voltage, soc, ac_on):
+    """Write current power state to JSON file (atomic write)."""
+    state = {
+        "voltage": voltage,
+        "soc": soc,
+        "ac": ac_on,
+        "charging": ac_on and soc < 100.0,
+        "ts": time.time(),
+    }
+    tmp = STATE_FILE + ".tmp"
+    try:
+        os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, STATE_FILE)
+    except OSError as e:
+        print(f"[POWER] State write error: {e}", file=sys.stderr, flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -187,9 +152,7 @@ def main():
     print("[POWER] Shadow Creatures power monitor starting", flush=True)
     print(f"[POWER] PLD: {PLD_CHIP} GPIO {PLD_PIN}", flush=True)
     print(f"[POWER] Battery: bus {BAT_BUS}, addr 0x{BAT_ADDR:02X}", flush=True)
-    print(f"[POWER] Thresholds: shutdown_soc={SHUTDOWN_SOC}%, "
-          f"critical_soc={CRITICAL_SOC}%, "
-          f"critical_voltage={CRITICAL_VOLTAGE}V", flush=True)
+    print(f"[POWER] State file: {os.path.abspath(STATE_FILE)}", flush=True)
 
     # --- Init I2C (fuel gauge) ---
     bus = None
@@ -218,8 +181,6 @@ def main():
               file=sys.stderr, flush=True)
         sys.exit(1)
 
-    low_count = 0
-
     try:
         while True:
             # Read battery
@@ -240,54 +201,8 @@ def main():
                     print(f"[POWER] PLD read error: {e}",
                           file=sys.stderr, flush=True)
 
-            # Evaluate
-            should_shutdown = False
-
-            if voltage > 0 and voltage < CRITICAL_VOLTAGE:
-                print(f"[POWER] CRITICAL voltage: {voltage}V < {CRITICAL_VOLTAGE}V",
-                      flush=True)
-                should_shutdown = True
-
-            if soc <= CRITICAL_SOC:
-                print(f"[POWER] CRITICAL SOC: {soc}% <= {CRITICAL_SOC}%",
-                      flush=True)
-                should_shutdown = True
-
-            if not ac_on and soc <= SHUTDOWN_SOC:
-                print(f"[POWER] AC lost + low SOC: {soc}% <= {SHUTDOWN_SOC}%",
-                      flush=True)
-                should_shutdown = True
-
-            # Disk space check
-            free_mb = disk_free_mb()
-            if free_mb < DISK_CRITICAL_MB:
-                print(f"[POWER] CRITICAL disk: {free_mb}MB free < {DISK_CRITICAL_MB}MB",
-                      flush=True)
-                disk_cleanup()
-                # Re-check after cleanup
-                free_mb = disk_free_mb()
-                if free_mb < DISK_CRITICAL_MB:
-                    print(f"[POWER] Still critical after cleanup: {free_mb}MB",
-                          flush=True)
-                    should_shutdown = True
-                else:
-                    print(f"[POWER] Cleanup recovered space: {free_mb}MB free",
-                          flush=True)
-
-            if should_shutdown:
-                low_count += 1
-                if low_count >= TRIGGER_COUNT:
-                    print(f"[POWER] {low_count} consecutive triggers — "
-                          "initiating shutdown", flush=True)
-                    do_shutdown()
-                else:
-                    print(f"[POWER] Trigger {low_count}/{TRIGGER_COUNT}",
-                          flush=True)
-            else:
-                if low_count > 0:
-                    print("[POWER] Condition cleared, resetting counter",
-                          flush=True)
-                low_count = 0
+            # Write state for other services to read
+            write_state(voltage, soc, ac_on)
 
             time.sleep(POLL_INTERVAL)
 

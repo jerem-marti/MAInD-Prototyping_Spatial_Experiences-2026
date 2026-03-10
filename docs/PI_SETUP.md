@@ -183,12 +183,14 @@ sudo apt install -y python3-libgpiod
 
 ### Power monitor service
 
-The `shadow-power` systemd service monitors battery level and AC power. It triggers a
-graceful shutdown (stopping all shadow services first) when:
+The `shadow-power` systemd service monitors battery level and AC power status.
+It writes `state/power_state.json` every 5 seconds with:
 
-- AC power is lost **and** battery SOC drops below 15%, or
-- Battery SOC drops below 5% (regardless of AC), or
-- Battery voltage drops below 3.20V
+```json
+{"voltage": 3.934, "soc": 66.4, "ac": true, "charging": true, "ts": 1710085767.0}
+```
+
+The backend can read this file to broadcast battery/charging status over WebSocket.
 
 Installed by `scripts/install_services.sh`. Logs:
 
