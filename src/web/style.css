@@ -899,3 +899,8 @@ body.no-debug #version-tag,
 body.no-debug #splash {
     display: none !important;
 }
+
+body.no-debug #battery-indicator {
+    top: var(--space-md) !important;
+    right: var(--space-lg) !important;
+}
