@@ -135,9 +135,19 @@ window.addEventListener('message', function(ev) {
 
 /* -- Splash Screen -- */
 
+const _splashStart = Date.now();
+const _splashMinMs = 3000;
+
 function dismissSplash() {
     const splash = document.getElementById('splash');
     if (!splash || splash.classList.contains('hidden')) return;
+
+    const elapsed = Date.now() - _splashStart;
+    if (elapsed < _splashMinMs) {
+        setTimeout(dismissSplash, _splashMinMs - elapsed);
+        return;
+    }
+
     splash.classList.add('hidden');
     splash.addEventListener('transitionend', () => splash.remove(), { once: true });
 }
