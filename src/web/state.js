@@ -28,16 +28,6 @@ const State = {
     // Camera frustum (degrees, matching physical camera)
     cameraFov: { h: 66, v: 41 },
 
-    // Device globe settings
-    // maxSignals is computed from FOV so ~targetVisibleSignals end up on screen
-    // after frustum culling. Devices are hash-distributed on a 360x180 sphere;
-    // the visible fraction = (fov.h / 360) * (fov.v / 180).
-    targetVisibleSignals: 16,
-    get maxSignals() {
-        const frac = (this.cameraFov.h / 360) * (this.cameraFov.v / 180);
-        return Math.round(this.targetVisibleSignals / Math.max(0.01, frac));
-    },
-
     // Type-based size multipliers for visual differentiation
     // (1.0 = default size from TelemetryMapper; >1 = larger, <1 = smaller)
     typeSizes: {

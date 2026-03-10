@@ -484,27 +484,7 @@ const UIManager = {
             manualToggle.addEventListener('change', (e) => { State.useManualParams = e.target.checked; });
         }
 
-        // Max signals +/- buttons (controls targetVisibleSignals, maxSignals is computed from FOV)
-        const maxSignalsDisplay = document.getElementById('max-signals-display');
-        const btnMaxInc = document.getElementById('btn-max-signals-inc');
-        const btnMaxDec = document.getElementById('btn-max-signals-dec');
-        if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.targetVisibleSignals;
-        if (btnMaxInc) {
-            btnMaxInc.addEventListener('click', () => {
-                if (State.targetVisibleSignals < 64) {
-                    State.targetVisibleSignals++;
-                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.targetVisibleSignals;
-                }
-            });
-        }
-        if (btnMaxDec) {
-            btnMaxDec.addEventListener('click', () => {
-                if (State.targetVisibleSignals > 1) {
-                    State.targetVisibleSignals--;
-                    if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.targetVisibleSignals;
-                }
-            });
-        }
+        // (max signals control removed — all devices pass through now)
 
         // Reset North button
         const resetNorthBtn = document.getElementById('btn-reset-north');
