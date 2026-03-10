@@ -32,6 +32,14 @@ const Gallery = {
 
     async init() {
         this._cacheEls();
+        // Register battery listener early — before async loadSnapshots,
+        // so the postMessage from the parent on iframe load is not missed.
+        var self = this;
+        window.addEventListener('message', function(ev) {
+            if (ev.data && ev.data.type === 'battery') {
+                self._updateBattery(ev.data.soc);
+            }
+        });
         await this.loadSnapshots();
         this.bindEvents();
         if (this.snapshots.length > 0) {
@@ -200,13 +208,6 @@ const Gallery = {
             if (e.key === 'ArrowLeft') self.prev();
             else if (e.key === 'ArrowRight') self.next();
             else if (e.key === 'Escape') self.close();
-        });
-
-        // Battery updates from parent frame
-        window.addEventListener('message', function(ev) {
-            if (ev.data && ev.data.type === 'battery') {
-                self._updateBattery(ev.data.soc);
-            }
         });
 
         // Swipe gestures
