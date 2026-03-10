@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Install and enable all Shadow Creatures systemd services.
-# Run once after first deploy or after adding/changing .service files.
+# Install and enable all Shadow Creatures services.
+# Run once after first deploy or after adding/changing service files.
 #
 # Usage:  bash scripts/install_services.sh
 
@@ -9,7 +9,7 @@ set -e
 DEPLOY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SYSTEMD_DIR="$DEPLOY_DIR/systemd"
 
-echo "=== Shadow Creatures — install systemd services ==="
+echo "=== Shadow Creatures — install services ==="
 echo "Deploy dir: $DEPLOY_DIR"
 
 # ── System-level services (kismet, reducer, backend) ──
@@ -26,30 +26,35 @@ for unit in shadow-kismet shadow-reducer shadow-backend; do
     echo "  Enabled $unit"
 done
 
-# ── User-level service (kiosk — needs graphical session) ──
+# ── Kiosk (XDG autostart — launches with the desktop session) ──
 
-USER_UNIT_DIR="$HOME/.config/systemd/user"
-mkdir -p "$USER_UNIT_DIR"
+AUTOSTART_DIR="$HOME/.config/autostart"
+mkdir -p "$AUTOSTART_DIR"
 
-echo "  Installing shadow-kiosk.service (user)"
-cp "$SYSTEMD_DIR/shadow-kiosk.service" "$USER_UNIT_DIR/shadow-kiosk.service"
+echo "  Installing shadow-kiosk.desktop (autostart)"
+cp "$SYSTEMD_DIR/shadow-kiosk.desktop" "$AUTOSTART_DIR/shadow-kiosk.desktop"
 
-systemctl --user daemon-reload
-systemctl --user enable shadow-kiosk
-echo "  Enabled shadow-kiosk (user)"
-
-# Ensure the user's lingering is enabled so user services start at boot
-# even before interactive login (needed for auto-start on headless reboot)
-sudo loginctl enable-linger "$USER"
-echo "  Enabled linger for $USER"
+# Clean up old systemd user service if present
+OLD_UNIT="$HOME/.config/systemd/user/shadow-kiosk.service"
+if [ -f "$OLD_UNIT" ]; then
+    echo "  Removing old systemd user service"
+    systemctl --user disable shadow-kiosk 2>/dev/null || true
+    systemctl --user stop shadow-kiosk 2>/dev/null || true
+    rm -f "$OLD_UNIT"
+    systemctl --user daemon-reload 2>/dev/null || true
+fi
 
 echo ""
 echo "=== Done. Services will start on next boot. ==="
 echo ""
+echo "  Kismet, Reducer, Backend: systemd (auto-start at boot)"
+echo "  Kiosk browser:            XDG autostart (auto-start with desktop)"
+echo ""
 echo "Manual control:"
 echo "  sudo systemctl start shadow-kismet shadow-reducer shadow-backend"
-echo "  systemctl --user start shadow-kiosk"
+echo "  bash scripts/kiosk.sh          # launch browser manually"
 echo ""
 echo "Logs:"
+echo "  journalctl -u shadow-kismet -f"
+echo "  journalctl -u shadow-reducer -f"
 echo "  journalctl -u shadow-backend -f"
-echo "  journalctl --user -u shadow-kiosk -f"
