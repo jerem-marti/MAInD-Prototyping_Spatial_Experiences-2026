@@ -12,7 +12,7 @@ const OrientationManager = {
     /** @type {'mouse'|'imu'|'deviceorientation'} Active input source */
     _source: 'mouse',
     /** @type {'mouse'|'gyro'} User-selected preferred source */
-    _preferred: 'mouse',
+    _preferred: 'gyro',
     /** @type {boolean} True when IMU data has been received at least once */
     _imuAvailable: false,
 
@@ -33,6 +33,7 @@ const OrientationManager = {
     init() {
         this._initMouseDrag();
         this._initDeviceOrientation();
+        this.setPreferred(this._preferred);
         console.log('[OrientationManager] Initialized, source:', this._source);
     },
 
