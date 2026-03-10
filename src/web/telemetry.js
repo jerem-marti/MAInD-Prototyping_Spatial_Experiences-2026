@@ -113,6 +113,8 @@ const Telemetry = {
     /**
      * Ingest a ghost_state object received via WebSocket.
      * Extracts aggregate telemetry and per-device data.
+     * Merges WiFi APs, WiFi clients, and BT devices with proportional
+     * slot allocation and a low-pass RSSI filter.
      * @param {Object} ghostState - The ghost_state.json content
      */
     ingestState(ghostState) {
@@ -125,10 +127,11 @@ const Telemetry = {
 
             const tel = ghostState.telemetry || {};
             const wifiAps = (ghostState.wifi && ghostState.wifi.aps) || [];
+            const wifiClients = (ghostState.wifi && ghostState.wifi.clients) || [];
             const btDevices = (ghostState.bt && ghostState.bt.devices) || [];
 
             // Use pre-computed aggregate telemetry from reducer
-            this.raw.wifiDeviceCount = tel.wifi_count ?? wifiAps.length;
+            this.raw.wifiDeviceCount = tel.wifi_count ?? (wifiAps.length + wifiClients.length);
             this.raw.wifiMeanRssi = tel.wifi_mean_rssi ?? -65;
             this.raw.wifiRssiVariance = tel.wifi_rssi_variance ?? 0;
             this.raw.wifiChannelSpread = 1; // not available from reducer
@@ -137,47 +140,82 @@ const Telemetry = {
             this.raw.totalDeviceCount = tel.total_count ?? (this.raw.wifiDeviceCount + this.raw.btleCount);
             this.raw.bleRatio = tel.ble_ratio ?? 0;
 
-            // Real burst rate from reducer (sum of Kismet minute_vec across all WiFi APs)
+            // Real burst rate from reducer (sum of Kismet minute_vec across all WiFi devices)
             this.raw.wifiBurstRate = tel.wifi_burst_rate ?? 0;
 
             this.raw.timestamp = (ghostState.ts || Date.now() / 1000) * 1000;
 
-            // Build per-device records for globe positioning from WiFi APs
-            const wifiDevices = [];
-            wifiAps.forEach(ap => {
-                const id = ap.id || '';
-                const rssi = ap.signal_dbm || -70;
-                const strength = ap.strength || 0;
-                if (id) {
-                    wifiDevices.push({
-                        mac: id, // using hashed ID as identifier
-                        rssi: rssi,
-                        rssiMin: rssi,
-                        rssiMax: rssi,
-                        name: ap.name || id.slice(0, 8),
-                        manuf: 'Unknown',
-                        type: 'Wi-Fi AP',
-                        packets: 0,
-                        burstRate: 0,
-                        azimuth: this._hashIdToAngle(id),
-                        elevation: this._hashIdToElevation(id)
-                    });
-                }
-            });
+            // --- Build per-device records for all device types ---
+            const minRssi = State.minRssiThreshold || -85;
 
-            // Sort by RSSI strength (strongest first)
-            wifiDevices.sort((a, b) => b.rssi - a.rssi);
-            State.devices = wifiDevices.slice(0, State.maxSignals);
+            const buildDevice = (d, type) => {
+                const id = d.id || '';
+                if (!id) return null;
+                const rssi = d.signal_dbm || -70;
+                if (rssi < minRssi) return null;
+                return {
+                    mac: id,
+                    rssi: rssi,
+                    rssiMin: rssi,
+                    rssiMax: rssi,
+                    name: d.name || id.slice(0, 8),
+                    manuf: 'Unknown',
+                    type: type,
+                    packets: 0,
+                    burstRate: 0,
+                    azimuth: this._hashIdToAngle(id),
+                    elevation: this._hashIdToElevation(id)
+                };
+            };
+
+            // Build filtered arrays per type
+            const apDevs = wifiAps.map(d => buildDevice(d, 'Wi-Fi AP')).filter(Boolean);
+            const clientDevs = wifiClients.map(d => buildDevice(d, 'Wi-Fi Client')).filter(Boolean);
+            const btDevs = btDevices.map(d => buildDevice(d, 'Bluetooth')).filter(Boolean);
+
+            // Sort each by RSSI descending (strongest first)
+            apDevs.sort((a, b) => b.rssi - a.rssi);
+            clientDevs.sort((a, b) => b.rssi - a.rssi);
+            btDevs.sort((a, b) => b.rssi - a.rssi);
+
+            // Proportional slot allocation
+            const totalFiltered = apDevs.length + clientDevs.length + btDevs.length;
+            const displayCount = Math.min(totalFiltered, State.maxSignals);
+
+            let apSlots, clientSlots, btSlots;
+            if (totalFiltered === 0) {
+                apSlots = clientSlots = btSlots = 0;
+            } else {
+                apSlots = Math.round(displayCount * (apDevs.length / totalFiltered));
+                clientSlots = Math.round(displayCount * (clientDevs.length / totalFiltered));
+                btSlots = displayCount - apSlots - clientSlots;
+                // Ensure each type with devices gets at least 1 slot
+                if (apDevs.length > 0 && apSlots === 0) { apSlots = 1; btSlots--; }
+                if (clientDevs.length > 0 && clientSlots === 0) { clientSlots = 1; btSlots--; }
+                if (btDevs.length > 0 && btSlots <= 0) { btSlots = 1; }
+            }
+
+            // Take top N from each type
+            const selected = [
+                ...apDevs.slice(0, Math.max(0, apSlots)),
+                ...clientDevs.slice(0, Math.max(0, clientSlots)),
+                ...btDevs.slice(0, Math.max(0, btSlots))
+            ];
+
+            // Final sort by RSSI for consistent ordering
+            selected.sort((a, b) => b.rssi - a.rssi);
+            State.devices = selected;
 
             this.forcedMode = false;
             this.source = 'LIVE';
 
             console.log('[Telemetry] State ingested:', {
-                wifi: this.raw.wifiDeviceCount,
+                wifi_aps: wifiAps.length,
+                wifi_clients: wifiClients.length,
                 bt: this.raw.btleCount,
                 total: this.raw.totalDeviceCount,
                 rssi: this.raw.wifiMeanRssi.toFixed(1) + ' dBm',
-                topDevices: State.devices.length + '/' + wifiAps.length
+                displayed: State.devices.length + ' (AP:' + apSlots + ' CLI:' + clientSlots + ' BT:' + btSlots + ')'
             });
         } catch (err) {
             this._throttledLog('Telemetry ingest error: ' + err.message);

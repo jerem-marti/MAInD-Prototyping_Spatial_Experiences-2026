@@ -140,7 +140,11 @@ const DebugMode = {
         lines.push('── 360° VIEW ──');
         lines.push(`Yaw: ${State.viewYaw.toFixed(1)}°  Pitch: ${State.viewPitch.toFixed(1)}°`);
         lines.push(`FOV: ${State.cameraFov.h}° × ${State.cameraFov.v}°`);
-        lines.push(`Devices: ${State.signals.length}/${State.devices.length} visible (Top ${State.maxSignals} WiFi)`);
+        lines.push(`Devices: ${State.signals.length}/${State.devices.length} visible`);
+        const apCount = State.devices.filter(d => d.type === 'Wi-Fi AP').length;
+        const cliCount = State.devices.filter(d => d.type === 'Wi-Fi Client').length;
+        const btCount = State.devices.filter(d => d.type === 'Bluetooth').length;
+        lines.push(`AP:${apCount} CLI:${cliCount} BT:${btCount} (cap ${State.maxSignals})`);
         if (typeof OrientationManager !== 'undefined') {
             lines.push(`Input: ${OrientationManager.getSourceName()}`);
         }

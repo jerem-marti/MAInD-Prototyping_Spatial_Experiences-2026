@@ -350,6 +350,7 @@ async def state_watcher():
 
                 has_devices = bool(
                     app_state.last_state.get("wifi", {}).get("aps")
+                    or app_state.last_state.get("wifi", {}).get("clients")
                     or app_state.last_state.get("bt", {}).get("devices")
                 )
                 if has_devices and not app_state.sense_on:

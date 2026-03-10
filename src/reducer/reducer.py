@@ -81,6 +81,51 @@ def reduce_wifi_aps(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any
     out.sort(key=lambda x: x.get("strength", 0.0), reverse=True)
     return out
 
+def reduce_wifi_clients(devs: List[Dict[str, Any]], salt: str, ap_ids: set) -> List[Dict[str, Any]]:
+    """Reduce WiFi client/station devices from the wifi-all view.
+    Filters OUT access points (basic_type_set 1 or 9) and any device
+    already present in ap_ids (to avoid duplicates with the AP list)."""
+    AP_TYPE_SETS = {1, 9}
+    out = []
+    for d in devs:
+        bts = first_key(d, ["kismet.device.base.basic_type_set"], default=0)
+        if bts in AP_TYPE_SETS:
+            continue
+
+        mac = first_key(d, ["kismet.device.base.macaddr"], default="unknown")
+        hid = stable_hash(salt, str(mac))
+        if hid in ap_ids:
+            continue
+
+        name = first_key(d, ["kismet.device.base.name", "kismet.device.base.commonname"], default="(client)")
+        last_time = first_key(d, ["kismet.device.base.last_time"], default=None)
+
+        base_signal = d.get("kismet.device.base.signal") or {}
+        sig_dbm = first_key(base_signal, [
+            "kismet.common.signal.last_signal",
+            "kismet.common.signal.last_signal_dbm",
+        ], default=None)
+        if sig_dbm == 0:
+            sig_dbm = None
+
+        burst_rate = 0
+        pkt_rrd = d.get("kismet.device.base.packets.rrd")
+        if isinstance(pkt_rrd, dict):
+            minute_vec = pkt_rrd.get("kismet.common.rrd.minute_vec")
+            if isinstance(minute_vec, list):
+                burst_rate = sum(minute_vec)
+
+        out.append({
+            "id": hid,
+            "name": str(name)[:64],
+            "last_seen": last_time,
+            "signal_dbm": sig_dbm,
+            "strength": dbm_to_strength(sig_dbm if isinstance(sig_dbm, (int, float)) else None),
+            "burst_rate": burst_rate,
+        })
+    out.sort(key=lambda x: x.get("strength", 0.0), reverse=True)
+    return out
+
 def reduce_bt(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any]]:
     out = []
     for d in devs:
@@ -107,13 +152,16 @@ def reduce_bt(devs: List[Dict[str, Any]], salt: str) -> List[Dict[str, Any]]:
     out.sort(key=lambda x: x.get("strength", 0.0), reverse=True)
     return out
 
-def compute_telemetry(wifi_aps: List[Dict[str, Any]], bt_devices: List[Dict[str, Any]]) -> Dict[str, Any]:
-    wifi_count = len(wifi_aps)
+def compute_telemetry(wifi_aps: List[Dict[str, Any]], wifi_clients: List[Dict[str, Any]], bt_devices: List[Dict[str, Any]]) -> Dict[str, Any]:
+    wifi_ap_count = len(wifi_aps)
+    wifi_client_count = len(wifi_clients)
+    wifi_count = wifi_ap_count + wifi_client_count
     bt_count = len(bt_devices)
     total_count = wifi_count + bt_count
 
-    rssi_vals = [ap["signal_dbm"] for ap in wifi_aps
-                 if isinstance(ap.get("signal_dbm"), (int, float))]
+    # RSSI stats across all WiFi devices (APs + clients)
+    rssi_vals = [d["signal_dbm"] for d in wifi_aps + wifi_clients
+                 if isinstance(d.get("signal_dbm"), (int, float))]
     if rssi_vals:
         mean_rssi = sum(rssi_vals) / len(rssi_vals)
         variance = sum((v - mean_rssi) ** 2 for v in rssi_vals) / len(rssi_vals)
@@ -124,10 +172,12 @@ def compute_telemetry(wifi_aps: List[Dict[str, Any]], bt_devices: List[Dict[str,
 
     ble_ratio = bt_count / max(1, total_count)
 
-    # Sum minute_vec burst rates across all APs (packets captured in last 60s)
-    wifi_burst_rate = sum(ap.get("burst_rate", 0) for ap in wifi_aps)
+    # Sum minute_vec burst rates across all WiFi devices
+    wifi_burst_rate = sum(d.get("burst_rate", 0) for d in wifi_aps + wifi_clients)
 
     return {
+        "wifi_ap_count": wifi_ap_count,
+        "wifi_client_count": wifi_client_count,
         "wifi_count": wifi_count,
         "bt_count": bt_count,
         "total_count": total_count,
@@ -169,6 +219,7 @@ def main():
     s.auth = (args.user, args.password)
 
     wifi_views = ["phy80211_accesspoints", "phydot11_accesspoints"]
+    wifi_all_views = ["phy-IEEE802.11", "phydot11_all"]
     bt_views = ["phybluetooth", "phybluetooth_le", "linuxbluetooth"]
 
     print("Reducer running. Writing:", args.out)
@@ -192,19 +243,31 @@ def main():
                     bt_view_used = v
                     break
 
+            # Fetch all WiFi devices (APs + clients + stations) for client extraction
+            wifi_all_payload = None
+            wifi_all_view_used = None
+            for v in wifi_all_views:
+                wifi_all_payload = fetch_view(s, args.kismet, v, args.window)
+                if wifi_all_payload is not None:
+                    wifi_all_view_used = v
+                    break
+
             wifi_devs = normalize_devices(wifi_payload) if wifi_payload else []
             bt_devs = normalize_devices(bt_payload) if bt_payload else []
+            wifi_all_devs = normalize_devices(wifi_all_payload) if wifi_all_payload else []
 
             wifi_aps = reduce_wifi_aps(wifi_devs, salt)
+            ap_ids = {ap["id"] for ap in wifi_aps}
+            wifi_clients = reduce_wifi_clients(wifi_all_devs, salt, ap_ids) if wifi_all_devs else []
             bt_devices = reduce_bt(bt_devs, salt)
 
             state = {
                 "ts": ts,
                 "window_s": args.window,
-                "views": {"wifi": wifi_view_used, "bt": bt_view_used},
-                "wifi": {"aps": wifi_aps},
+                "views": {"wifi": wifi_view_used, "wifi_all": wifi_all_view_used, "bt": bt_view_used},
+                "wifi": {"aps": wifi_aps, "clients": wifi_clients},
                 "bt": {"devices": bt_devices},
-                "telemetry": compute_telemetry(wifi_aps, bt_devices),
+                "telemetry": compute_telemetry(wifi_aps, wifi_clients, bt_devices),
             }
 
             atomic_write(args.out, state)

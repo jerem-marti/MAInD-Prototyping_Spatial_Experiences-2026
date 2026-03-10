@@ -119,6 +119,7 @@ const Renderer = {
                 anchor._deviceRssi = device.rssi;
                 anchor._deviceName = device.name;
                 anchor._deviceManuf = device.manuf;
+                anchor._deviceType = device.type;
 
                 // Sample image color at the projected position
                 if (State.imageRect.w > 0) {

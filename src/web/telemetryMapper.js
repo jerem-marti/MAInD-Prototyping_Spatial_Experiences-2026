@@ -93,5 +93,15 @@ const TelemetryMapper = {
         // If anchor.color is set by ImageDeformPass.sampleColor(), the
         // fluid engine already uses that sampled color for splats.
         // We leave hue untouched so manual/image-based color is preserved.
+
+        // --- Type-based hue override ---
+        // Override hue per device type for visual differentiation
+        if (signal._deviceType && State.typeHues && State.typeHues[signal._deviceType] !== undefined) {
+            const typeHue = State.typeHues[signal._deviceType];
+            if (signal.params.hue !== typeHue) {
+                signal.params.hue = typeHue;
+                signal._buildGradient();
+            }
+        }
     }
 };

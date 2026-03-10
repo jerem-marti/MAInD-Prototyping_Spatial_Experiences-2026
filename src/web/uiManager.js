@@ -491,7 +491,7 @@ const UIManager = {
         if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
         if (btnMaxInc) {
             btnMaxInc.addEventListener('click', () => {
-                if (State.maxSignals < 50) {
+                if (State.maxSignals < 720) {
                     State.maxSignals++;
                     if (maxSignalsDisplay) maxSignalsDisplay.textContent = State.maxSignals;
                 }

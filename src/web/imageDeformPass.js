@@ -65,12 +65,12 @@ const ImageDeformPass = {
             precision highp float;
             uniform sampler2D uImage;
             uniform int uAnchorCount;
-            uniform vec3 uAnchors[16];
+            uniform vec3 uAnchors[64];
             uniform float uStrength;
             varying vec2 vUv;
             void main() {
                 vec2 uv = vUv;
-                for (int i = 0; i < 16; i++) {
+                for (int i = 0; i < 64; i++) {
                     if (i >= uAnchorCount) break;
                     vec2 anchor = uAnchors[i].xy;
                     float radius = uAnchors[i].z;
@@ -98,7 +98,7 @@ const ImageDeformPass = {
             uAnchors: [],
             uStrength: gl.getUniformLocation(prog, 'uStrength')
         };
-        for (let i = 0; i < 16; i++) {
+        for (let i = 0; i < 64; i++) {
             this._program.uAnchors[i] = gl.getUniformLocation(prog, `uAnchors[${i}]`);
         }
 
@@ -175,9 +175,9 @@ const ImageDeformPass = {
         gl.uniform1i(this._program.uImage, 0);
 
         // Anchor data: convert canvas px to normalized UV within the image rect
-        const count = Math.min(anchors.length, 16);
+        const count = Math.min(anchors.length, 64);
         gl.uniform1i(this._program.uAnchorCount, count);
-        for (let i = 0; i < 16; i++) {
+        for (let i = 0; i < 64; i++) {
             if (i < count) {
                 const a = anchors[i];
                 const nx = (a.x - imageRect.x) / imageRect.w;

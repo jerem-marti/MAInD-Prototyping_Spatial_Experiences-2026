@@ -29,7 +29,17 @@ const State = {
     cameraFov: { h: 66, v: 41 },
 
     // Device globe settings
-    maxSignals: 15,          // Top N WiFi devices to display as signals
+    maxSignals: 720,         // Soft cap on total displayed signals (all types)
+
+    // Type-based hue overrides for visual differentiation
+    typeHues: {
+        'Wi-Fi AP':     200,   // blue/cyan
+        'Wi-Fi Client': 140,   // green/teal
+        'Bluetooth':     30,   // amber/warm
+    },
+
+    // Minimum RSSI threshold — signals weaker than this are filtered out
+    minRssiThreshold: -85,
 
     // Per-device data from current state (populated by Telemetry.ingestState)
     devices: [],             // Array of { mac, azimuth, elevation, rssi, name, manuf, ... }
