@@ -1,15 +1,14 @@
 [Unit]
 Description=Shadow Creatures Kiosk (Chromium fullscreen)
-# Wait for the Wayland/labwc desktop session and the backend HTTP server
-After=graphical-session.target shadow-backend.service
+After=shadow-backend.service
 Wants=shadow-backend.service
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 4
+# The kiosk script waits for the X11/Wayland display to be ready
 ExecStart=/home/jermarti/maind-deploy/scripts/kiosk.sh http://localhost:8080
 Restart=on-failure
-RestartSec=3
+RestartSec=5
 
 [Install]
-WantedBy=graphical-session.target
+WantedBy=default.target
