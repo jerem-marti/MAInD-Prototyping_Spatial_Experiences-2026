@@ -120,6 +120,10 @@ const Renderer = {
                 anchor._deviceManuf = device.manuf;
                 anchor._deviceType = device.type;
 
+                // Deterministic hue from device MAC (stable color across reloads)
+                anchor.params.hue = this._hashToUnit(device.mac, 0x6a09e667) * 360;
+                anchor._buildGradient();
+
                 State.signals.push(anchor);
                 if (signalLayer) signalLayer.signals.push(anchor);
                 map.set(device.mac, anchor);
@@ -212,10 +216,6 @@ const Renderer = {
 
         // Debug HUD
         DebugMode.renderHUD(ctx, canvas, State.signals);
-
-        // Notify LivePhotoCapture that a complete frame is ready.
-        // Must be called after all compositing (including WebGL drawImage).
-        LivePhotoCapture.requestFrame();
     },
 
     capture() {

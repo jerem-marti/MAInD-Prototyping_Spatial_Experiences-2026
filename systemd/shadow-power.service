@@ -1,5 +1,7 @@
 [Unit]
 Description=Shadow Creatures Power Monitor (X1201 UPS)
+# EXHIBITION MODE: This service is NOT needed — no battery/UPS hardware.
+# Do not enable on exhibition deployments.
 After=multi-user.target
 
 [Service]

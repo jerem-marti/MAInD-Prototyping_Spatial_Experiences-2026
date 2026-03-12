@@ -1,5 +1,5 @@
 [Unit]
-Description=Shadow Creatures Backend (mjpeg + ws)
+Description=Shadow Creatures Backend (Exhibition: WebSocket + static files)
 After=network.target
 
 [Service]

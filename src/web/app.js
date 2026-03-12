@@ -84,11 +84,6 @@ function connectWebSocket() {
         try {
             const msg = JSON.parse(ev.data);
 
-            if (msg.type === 'gallery_toggle') {
-                toggleGallery();
-                return;
-            }
-
             if (msg.type === 'debug_toggle') {
                 window.ELEN_DEBUG = !window.ELEN_DEBUG;
                 document.body.classList.toggle('no-debug', !window.ELEN_DEBUG);

@@ -307,27 +307,6 @@ const UIManager = {
             });
         }
 
-        // Capture button — uses backend snapshot flow
-        if (UI.btnCapture) {
-            UI.btnCapture.addEventListener('click', () => {
-                if (typeof wsSend === 'function') {
-                    wsSend({ type: 'snapshot_request' });
-                }
-            });
-        }
-
-        // Gallery toggle button — uses backend WS flow (physical button handles long-press debug toggle)
-        const btnGallery = document.getElementById('btn-gallery');
-        if (btnGallery) {
-            btnGallery.addEventListener('click', () => {
-                if (typeof wsSend === 'function') {
-                    wsSend({ type: 'gallery_toggle' });
-                } else if (typeof toggleGallery === 'function') {
-                    toggleGallery();
-                }
-            });
-        }
-
         // Mode switch button
         const btnMode = document.getElementById('btn-mode');
         if (btnMode) {
