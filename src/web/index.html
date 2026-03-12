@@ -64,20 +64,7 @@
                 </div>
             </section>
 
-            <!-- 360 View -->
-            <section class="panel" id="panel-view">
-                <div class="panel-header">
-                    <span class="panel-title">360 VIEW</span>
-                </div>
-                <div class="panel-body">
-                    <div id="view-status" style="font-size: 10px; color: #FF6103; padding: 4px 0; opacity: 0.8;">
-                        YAW: 0 | PITCH: 0 | SOURCE: mouse
-                    </div>
-                    <button class="btn btn-action active" id="btn-orientation-toggle">INPUT: GYRO</button>
-                    <button class="btn btn-action" id="btn-reset-north">RESET NORTH</button>
-                    <div style="font-size: 9px; color: #908E8C; padding: 4px 0;">Toggle between mouse drag and gyroscope/IMU</div>
-                </div>
-            </section>
+            <!-- 360 View (Removed in exhibition mode) -->
 
             <!-- Layer Stack -->
             <section class="panel" id="panel-layers">
@@ -160,37 +147,12 @@
             <div id="canvas-container">
                 <canvas id="main-canvas"></canvas>
             </div>
-            <!-- Hidden MJPEG feed image (used as texture source) -->
-            <img id="feed" style="display:none" crossorigin="anonymous">
+            <!-- MJPEG feed removed (no camera in exhibition) -->
             <div id="version-tag">vAtom</div>
-            <!-- Snapshot feedback overlay (centered) -->
-            <div id="snapshot-feedback" class="snapshot-feedback hidden">
-                <div class="snapshot-feedback-spinner"></div>
-                <svg class="snapshot-feedback-check" viewBox="0 0 24 24" width="32" height="32">
-                    <path d="M4.5 12.75l6 6 9-13.5" fill="none" stroke="currentColor"
-                          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                <span class="snapshot-feedback-text">REGISTERING SNAPSHOT</span>
-            </div>
-
-            <!-- Battery indicator (top-right) -->
-            <div id="battery-indicator">
-                <svg id="battery-icon" viewBox="0 0 24 12" width="24" height="12">
-                    <rect x="0.5" y="0.5" width="20" height="11" rx="1.5" ry="1.5"
-                          fill="none" stroke="currentColor" stroke-width="1"/>
-                    <rect x="21" y="3" width="2.5" height="5" rx="0.8" ry="0.8"
-                          fill="currentColor"/>
-                    <rect id="battery-fill" x="2" y="2" width="17" height="7" rx="0.5" ry="0.5"
-                          fill="currentColor"/>
-                </svg>
-                <span id="battery-pct">--%</span>
-            </div>
+            <!-- Snapshot feedback and battery removed (exhibition mode) -->
             <!-- Bottom action bar -->
             <div id="action-bar">
                 <button id="btn-sidebar-toggle" class="action-btn">PANEL</button>
-                <div class="action-bar-spacer"></div>
-                <button id="btn-gallery" class="action-btn">GALLERY</button>
-                <button id="btn-capture" class="action-btn">CAPTURE</button>
             </div>
             <div id="status-bar">
                 <span id="status-resolution">&mdash;</span>
@@ -216,13 +178,10 @@
     <script src="debug.js"></script>
 
     <!-- Application modules -->
-    <script src="imageDeformPass.js"></script>
     <script src="uiManager.js"></script>
-    <script src="orientationManager.js"></script>
     <script src="camera.js"></script>
     <script src="deformEngine.js"></script>
     <script src="renderer.js"></script>
-    <script src="livePhoto.js"></script>
 
     <!-- Bootstrap -->
     <script src="app.js"></script>

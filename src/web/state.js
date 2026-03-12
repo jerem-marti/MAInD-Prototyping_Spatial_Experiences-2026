@@ -21,12 +21,12 @@ const State = {
     galleryOpen: false,      // true when gallery iframe is active
     paused: false,           // true = render loop and telemetry ingestion paused
 
-    // View orientation (degrees) — controlled by OrientationManager
-    viewYaw: 0,              // 0-360, horizontal pan on the virtual sphere
-    viewPitch: 0,            // -90 to +90, vertical tilt
+    // View orientation — fixed for exhibition (no 360° sphere)
+    viewYaw: 0,
+    viewPitch: 0,
 
-    // Camera frustum (degrees, matching physical camera)
-    cameraFov: { h: 66, v: 41 },
+    // Camera frustum — not used in exhibition (all devices visible)
+    cameraFov: { h: 360, v: 180 },
 
     // Type-based size multipliers for visual differentiation
     // (1.0 = default size from TelemetryMapper; >1 = larger, <1 = smaller)

@@ -203,30 +203,9 @@ const ImageDeformPass = {
         return this.canvas;
     },
 
-    /** Sample image color at canvas position. Returns {r,g,b} 0-255, clamped to avoid pure B/W */
-    sampleColor(canvasX, canvasY, imageRect) {
-        if (!this._ready || !this._imageTex) return null;
-        const gl = this.gl;
-
-        const u = (canvasX - imageRect.x) / imageRect.w;
-        const v = 1.0 - (canvasY - imageRect.y) / imageRect.h;
-        if (u < 0 || u > 1 || v < 0 || v > 1) return null;
-
-        // Render 1x1 pixel of the image at (u,v) into the sample FBO
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this._sampleFBO);
-        gl.viewport(0, 0, 1, 1);
-
-        gl.useProgram(this._program.program);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, this._imageTex);
-        gl.uniform1i(this._program.uImage, 0);
-        gl.uniform1i(this._program.uAnchorCount, 0); // no deformation for sampling
-        gl.uniform1f(this._program.uStrength, 0.0);
-
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-        // Fallback: use a 2D canvas to sample the pixel from the original image
-        return this._sampleViaCanvas(canvasX, canvasY, imageRect);
+    /** Sample image color at canvas position. Returns null in exhibition mode (no camera). */
+    sampleColor(_canvasX, _canvasY, _imageRect) {
+        return null;
     },
 
     /** Internal: sample pixel via a tiny offscreen 2D canvas (called once per anchor, not per frame) */

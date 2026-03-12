@@ -22,94 +22,7 @@ function wsSend(obj) {
     }
 }
 
-/* -- Snapshot Flow -- */
-
-let _snapFeedbackTimer = null;
-
-function _showSnapshotFeedback(state, text) {
-    const el = document.getElementById('snapshot-feedback');
-    if (!el) return;
-    const textEl = el.querySelector('.snapshot-feedback-text');
-
-    clearTimeout(_snapFeedbackTimer);
-
-    // Reset classes
-    el.classList.remove('hidden', 'visible', 'success', 'error');
-    if (textEl) textEl.textContent = text;
-
-    if (state === 'loading') {
-        // Show with spinner
-        void el.offsetWidth; // force reflow
-        el.classList.add('visible');
-    } else if (state === 'success') {
-        el.classList.add('visible', 'success');
-        _snapFeedbackTimer = setTimeout(() => _hideSnapshotFeedback(), 1500);
-    } else if (state === 'error') {
-        el.classList.add('visible', 'error');
-        _snapFeedbackTimer = setTimeout(() => _hideSnapshotFeedback(), 2500);
-    }
-}
-
-function _hideSnapshotFeedback() {
-    const el = document.getElementById('snapshot-feedback');
-    if (!el) return;
-    el.classList.remove('visible');
-    // After fade-out transition, hide completely
-    setTimeout(() => {
-        el.classList.add('hidden');
-        el.classList.remove('success', 'error');
-    }, 350);
-}
-
-function captureSnapshotDataURL() {
-    const exportCanvas = Renderer.capture();
-    return exportCanvas.toDataURL('image/png');
-}
-
-function _blobToBase64(blob) {
-    return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
-        reader.readAsDataURL(blob);
-    });
-}
-
-async function uploadSnapshot() {
-    try {
-        _showSnapshotFeedback('loading', 'REGISTERING SNAPSHOT');
-
-        // Yield to browser so the feedback overlay is actually painted
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-        // 1. Trigger Live Photo post-capture recording (collects 1.5s more)
-        const livePromise = LivePhotoCapture.trigger();
-
-        // 2. Capture still frame immediately
-        const data_url = captureSnapshotDataURL();
-
-        // 3. Wait for Live Photo video to finish
-        const liveBlob = await livePromise;
-
-        // 4. Build payload
-        const payload = { data_url };
-        if (liveBlob) {
-            payload.live_webm = await _blobToBase64(liveBlob);
-        }
-
-        // 5. Upload
-        await fetch('/api/upload_snapshot', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-
-        _showSnapshotFeedback('success', 'SNAPSHOT SAVED');
-        console.log('[App] Snapshot uploaded' + (liveBlob ? ' (with Live Photo)' : ''));
-    } catch (e) {
-        _showSnapshotFeedback('error', 'SNAPSHOT FAILED');
-        console.error('[App] Snapshot upload failed:', e);
-    }
-}
+/* -- Snapshot Flow -- (Gallery & capture disabled in exhibition mode) */
 
 /* -- Mode Management -- */
 
@@ -120,75 +33,7 @@ function setMode(m) {
     if (btnMode) btnMode.textContent = `MODE: ${label}`;
 }
 
-/* -- Gallery Management -- */
-
-let _galleryFrame = null;
-let _lastBatterySoc = null;
-
-function openGallery() {
-    if (State.galleryOpen) return;
-    State.galleryOpen = true;
-    pauseInstrument();
-
-    _galleryFrame = document.createElement('iframe');
-    _galleryFrame.id = 'gallery-frame';
-    _galleryFrame.src = '/gallery/';
-    _galleryFrame.style.cssText =
-        'position:fixed;inset:0;width:100vw;height:100vh;border:none;z-index:1000;background:#0a0a0c;';
-
-    // Send last known battery value once the gallery iframe loads
-    if (_lastBatterySoc !== null) {
-        _galleryFrame.addEventListener('load', () => {
-            if (_galleryFrame && _galleryFrame.contentWindow) {
-                _galleryFrame.contentWindow.postMessage(
-                    { type: 'battery', soc: _lastBatterySoc }, '*'
-                );
-            }
-        }, { once: true });
-    }
-
-    document.body.appendChild(_galleryFrame);
-
-    const btn = document.getElementById('btn-gallery');
-    if (btn) btn.classList.add('active');
-}
-
-function closeGallery() {
-    if (!State.galleryOpen) return;
-    State.galleryOpen = false;
-
-    if (_galleryFrame) {
-        _galleryFrame.remove();
-        _galleryFrame = null;
-    }
-
-    resumeInstrument();
-
-    const btn = document.getElementById('btn-gallery');
-    if (btn) btn.classList.remove('active');
-}
-
-function toggleGallery() {
-    if (State.galleryOpen) closeGallery();
-    else openGallery();
-}
-
-function pauseInstrument() {
-    State.paused = true;
-    Camera.stop();
-}
-
-function resumeInstrument() {
-    State.paused = false;
-    Camera.start();
-}
-
-// Listen for close messages from gallery iframe
-window.addEventListener('message', function(ev) {
-    if (ev.data && ev.data.type === 'gallery_close') {
-        closeGallery();
-    }
-});
+/* -- Gallery Management -- (Disabled in exhibition mode) */
 
 /* -- Splash Screen -- */
 
@@ -209,30 +54,7 @@ function dismissSplash() {
     splash.addEventListener('transitionend', () => splash.remove(), { once: true });
 }
 
-/* -- Battery Indicator -- */
-
-function _updateBattery(soc) {
-    _lastBatterySoc = soc;
-
-    const el = document.getElementById('battery-indicator');
-    const fill = document.getElementById('battery-fill');
-    const pctEl = document.getElementById('battery-pct');
-    if (!el || !fill || !pctEl) return;
-
-    const pct = Math.max(0, Math.min(100, Math.round(soc)));
-    pctEl.textContent = pct + '%';
-
-    // Scale fill bar width: 0% -> 0, 100% -> 17 (full inner rect)
-    fill.setAttribute('width', String((pct / 100) * 17));
-
-    // Color class based on level
-    el.classList.remove('bat-low', 'bat-mid', 'bat-ok');
-    if (pct <= 15) el.classList.add('bat-low');
-    else if (pct <= 35) el.classList.add('bat-mid');
-    else el.classList.add('bat-ok');
-
-    el.classList.add('visible');
-}
+/* -- Battery Indicator -- (Removed in exhibition mode no power gauge needed) */
 
 /* -- WebSocket Connection -- */
 
@@ -282,27 +104,7 @@ function connectWebSocket() {
                 setMode(msg.mode);
             }
 
-            if (msg.type === 'snapshot') {
-                if (!State.paused) await uploadSnapshot();
-            }
-
-            if (msg.type === 'leds') {
-                // LED status — could be shown in UI if needed
-            }
-
-            if (msg.type === 'imu') {
-                if (!State.paused) OrientationManager.onIMUData(msg);
-            }
-
-            if (msg.type === 'battery') {
-                _updateBattery(msg.soc);
-                // Forward to gallery iframe if open
-                if (_galleryFrame && _galleryFrame.contentWindow) {
-                    _galleryFrame.contentWindow.postMessage(
-                        { type: 'battery', soc: msg.soc }, '*'
-                    );
-                }
-            }
+            // Snapshot, LED, IMU, and battery messages ignored in exhibition mode
         } catch (e) {
             console.error('[App] WebSocket message error:', e);
         }
@@ -333,24 +135,12 @@ function initApp() {
         // Init telemetry (with synthetic fallback data)
         Telemetry.init();
 
-        // Init ImageDeformPass (separate WebGL context for color sampling)
-        ImageDeformPass.init();
-
         // Init UI bindings and default layers
         UIManager.init();
-
-        // Init 360 orientation (IMU WebSocket + mouse drag)
-        OrientationManager.init();
-
-        // Start MJPEG camera feed
-        Camera.start();
 
         // Init renderer and start render loop
         Renderer.init();
         requestAnimationFrame((t) => Renderer.loop(t));
-
-        // Init Live Photo capture (rolling video buffer from main canvas)
-        LivePhotoCapture.init(UI.canvas);
     } catch (e) {
         console.error('[App] Module init error:', e);
     }
