@@ -256,11 +256,11 @@ const AtomFluidEngine = {
      * @property {number} BUOYANCY             - Subtle upward bias, candle-like (default 0.15).
      */
     config: {
-        TEXTURE_DOWNSAMPLE: 1,
+        TEXTURE_DOWNSAMPLE: 2,       // 1=half-res, 2=quarter-res (better for projector)
         DENSITY_DISSIPATION: 0.975,
         VELOCITY_DISSIPATION: 0.985,
         PRESSURE_DISSIPATION: 0.8,
-        PRESSURE_ITERATIONS: 20,
+        PRESSURE_ITERATIONS: 12,    // 20 is overkill; 12 is visually indistinguishable
         CURL: 30,
         BUOYANCY: 0.15   // subtle upward bias (candle-like)
     },
