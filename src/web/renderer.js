@@ -113,21 +113,21 @@ const Renderer = {
                 anchor._deviceManuf = device.manuf;
                 anchor._deviceType = device.type;
 
-                // Assign a hue based on device type instead of sampling camera
+                // Assign hue from type-specific range + per-device MAC-hash offset
+                // Each type has a distinct hue base; the MAC hash shifts it ±30°
+                // so devices of the same type are visually varied but stay in the same color family.
                 // hue: degrees (0-360), saturation: 0-100, brightness: 0-100
-                if (device.type === 'Wi-Fi AP') {
-                    anchor.params.hue = 25;          // warm orange
-                    anchor.params.saturation = 80;
-                    anchor.params.brightness = 55;
-                } else if (device.type === 'Bluetooth') {
-                    anchor.params.hue = 220;         // blue
-                    anchor.params.saturation = 75;
-                    anchor.params.brightness = 50;
-                } else {
-                    anchor.params.hue = 160;         // cyan-green
-                    anchor.params.saturation = 70;
-                    anchor.params.brightness = 50;
-                }
+                const _typeRanges = {
+                    'Wi-Fi AP':     { base: 200, spread: 30, sat: 75, bri: 50 }, // blue/cyan family
+                    'Wi-Fi Client': { base: 140, spread: 30, sat: 70, bri: 50 }, // green/teal family
+                    'Bluetooth':    { base:  30, spread: 30, sat: 80, bri: 55 }, // amber/warm family
+                    'BTLE':         { base:  30, spread: 30, sat: 80, bri: 55 }, // same as BT
+                };
+                const tr = _typeRanges[device.type] || { base: 160, spread: 30, sat: 70, bri: 50 };
+                const hueOffset = this._macToFloat(device.mac) * tr.spread;
+                anchor.params.hue        = ((tr.base + hueOffset) + 360) % 360;
+                anchor.params.saturation = tr.sat;
+                anchor.params.brightness = tr.bri;
                 anchor._buildGradient();
 
                 State.signals.push(anchor);
@@ -154,6 +154,19 @@ const Renderer = {
     },
 
     _lastSignalCount: 0,
+
+    /**
+     * Hash a MAC address string to a deterministic float in [-1, 1].
+     * Used to give each device a unique but stable hue offset.
+     */
+    _macToFloat(mac) {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < mac.length; i++) {
+            h ^= mac.charCodeAt(i);
+            h = Math.imul(h, 0x01000193) >>> 0;
+        }
+        return ((h & 0x7fffffff) / 0x7fffffff) * 2 - 1; // -1 to 1
+    },
 
     render(timestamp, dt) {
         const canvas = UI.canvas;
