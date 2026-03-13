@@ -39,13 +39,7 @@ const Renderer = {
         DebugMode.trackFrame(timestamp);
         Telemetry.update();
 
-        // Re-upload current camera frame to ImageDeformPass every tick so
-        // the deformation pass always uses the latest image (prevents freeze)
-        if (Camera.active && State.image && ImageDeformPass._ready) {
-            ImageDeformPass.uploadImage(State.image);
-        }
-
-        // 360 Globe: project devices through view frustum
+        // Projector mode: distribute devices directly on screen
         this._updateDeviceSignals();
 
         // Map telemetry to atom fluid anchor params
@@ -75,35 +69,33 @@ const Renderer = {
         return angle;
     },
 
+    /**
+     * Projector mode: distribute devices directly on the screen using
+     * their hashed azimuth/elevation as stable x/y positions (no IMU,
+     * no 360 frustum culling — all devices are always visible).
+     */
     _updateDeviceSignals() {
-        if (!State.image || State.imageRect.w === 0 || State.devices.length === 0) return;
+        if (State.devices.length === 0) return;
 
         const canvas = UI.canvas;
-        const fovH = State.cameraFov.h;
-        const fovV = State.cameraFov.v;
-        const halfH = fovH / 2;
-        const halfV = fovV / 2;
         const map = State.deviceSignalMap;
-
-        const visibleMacs = new Set();
+        const currentMacs = new Set();
 
         if (!State.layers.find(l => l.type === 'signal')) {
             UIManager.addLayer('signal');
         }
         const signalLayer = State.layers.find(l => l.type === 'signal');
 
+        const margin = 0.08; // 8% margin from edges
+
         for (const device of State.devices) {
-            const deltaYaw = this._wrapAngle(device.azimuth - State.viewYaw);
-            const deltaPitch = this._wrapAngle(device.elevation - State.viewPitch);
+            currentMacs.add(device.mac);
 
-            if (Math.abs(deltaYaw) > halfH || Math.abs(deltaPitch) > halfV) {
-                continue;
-            }
-
-            visibleMacs.add(device.mac);
-
-            const screenX = canvas.width / 2 + (deltaYaw / halfH) * (canvas.width / 2);
-            const screenY = canvas.height / 2 - (deltaPitch / halfV) * (canvas.height / 2);
+            // Map azimuth [0,360) -> x across canvas, elevation [-90,90] -> y
+            const nx = (device.azimuth / 360);
+            const ny = ((device.elevation + 90) / 180);
+            const screenX = canvas.width  * (margin + nx * (1 - 2 * margin));
+            const screenY = canvas.height * (margin + (1 - ny) * (1 - 2 * margin));
 
             if (map.has(device.mac)) {
                 const anchor = map.get(device.mac);
@@ -121,18 +113,21 @@ const Renderer = {
                 anchor._deviceManuf = device.manuf;
                 anchor._deviceType = device.type;
 
-                // Sample image color at the projected position
-                if (State.imageRect.w > 0) {
-                    const sampled = ImageDeformPass.sampleColor(screenX, screenY, State.imageRect);
-                    if (sampled) {
-                        anchor.color = { r: sampled.r / 255, g: sampled.g / 255, b: sampled.b / 255 };
-                        const hsl = _rgbToHSL(sampled.r, sampled.g, sampled.b);
-                        anchor.params.hue = hsl.h;
-                        anchor.params.saturation = hsl.s;
-                        anchor.params.brightness = hsl.l;
-                        anchor._buildGradient();
-                    }
+                // Assign a hue based on device type instead of sampling camera
+                if (device.type === 'Wi-Fi AP') {
+                    anchor.params.hue = 0.08;       // warm orange
+                    anchor.params.saturation = 0.7;
+                    anchor.params.brightness = 0.6;
+                } else if (device.type === 'Bluetooth') {
+                    anchor.params.hue = 0.6;         // blue-ish
+                    anchor.params.saturation = 0.65;
+                    anchor.params.brightness = 0.5;
+                } else {
+                    anchor.params.hue = 0.3;         // green-cyan
+                    anchor.params.saturation = 0.6;
+                    anchor.params.brightness = 0.55;
                 }
+                anchor._buildGradient();
 
                 State.signals.push(anchor);
                 if (signalLayer) signalLayer.signals.push(anchor);
@@ -140,9 +135,9 @@ const Renderer = {
             }
         }
 
-        // Remove anchors for devices no longer visible
+        // Remove anchors for devices no longer present
         for (const [mac, anchor] of map) {
-            if (!visibleMacs.has(mac)) {
+            if (!currentMacs.has(mac)) {
                 State.signals = State.signals.filter(s => s.id !== anchor.id);
                 if (signalLayer) {
                     signalLayer.signals = signalLayer.signals.filter(s => s.id !== anchor.id);
@@ -164,43 +159,11 @@ const Renderer = {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        // Black background (projector mode — no camera feed)
         ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = '#0a0a0c';
+        ctx.fillStyle = '#000000';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Draw source (/mjpeg feed)
-        const source = State.image;
-        if (source) {
-            const sw = Camera.active ? Camera.getWidth() : (source.naturalWidth || source.width || 0);
-            const sh = Camera.active ? Camera.getHeight() : (source.naturalHeight || source.height || 0);
-            if (sw > 0 && sh > 0) {
-                const aspect = sw / sh;
-                let dw = canvas.width, dh = dw / aspect;
-                if (dh > canvas.height) { dh = canvas.height; dw = dh * aspect; }
-                const dx = (canvas.width - dw) / 2;
-                const dy = (canvas.height - dh) / 2;
-                State.imageRect = { x: dx, y: dy, w: dw, h: dh };
-
-                let imgSource = source;
-                if (DeformEngine.hasEdits && DeformEngine.buffer) {
-                    imgSource = DeformEngine.buffer;
-                }
-
-                // Apply localized deformation at signal anchors
-                if (State.signals.length > 0 && ImageDeformPass._ready && ImageDeformPass._imageTex) {
-                    const deformed = ImageDeformPass.render(State.signals, State.imageRect, canvas.width, canvas.height);
-                    if (deformed) {
-                        ctx.drawImage(deformed, dx, dy, dw, dh);
-                    } else {
-                        ctx.drawImage(imgSource, dx, dy, dw, dh);
-                    }
-                } else {
-                    ctx.drawImage(imgSource, dx, dy, dw, dh);
-                }
-            }
-        } else {
-            State.imageRect = { x: 0, y: 0, w: 0, h: 0 };
-        }
+        State.imageRect = { x: 0, y: 0, w: canvas.width, h: canvas.height };
 
         // Draw layers
         State.layers.forEach(layer => {
@@ -208,11 +171,7 @@ const Renderer = {
             ctx.save();
 
             if (layer.type === 'signal') {
-                if (State.image && State.imageRect.w > 0) {
-                    ctx.beginPath();
-                    ctx.rect(State.imageRect.x, State.imageRect.y, State.imageRect.w, State.imageRect.h);
-                    ctx.clip();
-                }
+                // No clipping — full canvas is the render area in projector mode
             }
 
             ctx.globalAlpha = layer.opacity || 1.0;
@@ -259,13 +218,6 @@ const Renderer = {
         UI.status.signals.textContent = `${State.signals.length} signals`;
         UI.signalCount.textContent = State.signals.length;
         UI.status.fps.textContent = `${DebugMode._fps} fps`;
-
-        // Update 360 View status
-        const viewStatus = document.getElementById('view-status');
-        if (viewStatus) {
-            const src = typeof OrientationManager !== 'undefined' ? OrientationManager._source : 'N/A';
-            viewStatus.textContent = `YAW: ${State.viewYaw.toFixed(0)}\u00B0 | PITCH: ${State.viewPitch.toFixed(0)}\u00B0 | SOURCE: ${src}`;
-        }
 
         // Debug HUD
         DebugMode.renderHUD(ctx, canvas, State.signals);

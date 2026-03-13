@@ -134,18 +134,7 @@ function openGallery() {
     _galleryFrame.id = 'gallery-frame';
     _galleryFrame.src = '/gallery/';
     _galleryFrame.style.cssText =
-        'position:fixed;inset:0;width:100vw;height:100vh;border:none;z-index:1000;background:#0a0a0c;';
-
-    // Send last known battery value once the gallery iframe loads
-    if (_lastBatterySoc !== null) {
-        _galleryFrame.addEventListener('load', () => {
-            if (_galleryFrame && _galleryFrame.contentWindow) {
-                _galleryFrame.contentWindow.postMessage(
-                    { type: 'battery', soc: _lastBatterySoc }, '*'
-                );
-            }
-        }, { once: true });
-    }
+        'position:fixed;inset:0;width:100vw;height:100vh;border:none;z-index:1000;background:#000;';
 
     document.body.appendChild(_galleryFrame);
 
@@ -175,12 +164,10 @@ function toggleGallery() {
 
 function pauseInstrument() {
     State.paused = true;
-    Camera.stop();
 }
 
 function resumeInstrument() {
     State.paused = false;
-    Camera.start();
 }
 
 // Listen for close messages from gallery iframe
@@ -287,21 +274,7 @@ function connectWebSocket() {
             }
 
             if (msg.type === 'leds') {
-                // LED status — could be shown in UI if needed
-            }
-
-            if (msg.type === 'imu') {
-                if (!State.paused) OrientationManager.onIMUData(msg);
-            }
-
-            if (msg.type === 'battery') {
-                _updateBattery(msg.soc);
-                // Forward to gallery iframe if open
-                if (_galleryFrame && _galleryFrame.contentWindow) {
-                    _galleryFrame.contentWindow.postMessage(
-                        { type: 'battery', soc: msg.soc }, '*'
-                    );
-                }
+                // LED status — not used in projector mode
             }
         } catch (e) {
             console.error('[App] WebSocket message error:', e);
@@ -333,19 +306,10 @@ function initApp() {
         // Init telemetry (with synthetic fallback data)
         Telemetry.init();
 
-        // Init ImageDeformPass (separate WebGL context for color sampling)
-        ImageDeformPass.init();
-
         // Init UI bindings and default layers
         UIManager.init();
 
-        // Init 360 orientation (IMU WebSocket + mouse drag)
-        OrientationManager.init();
-
-        // Start MJPEG camera feed
-        Camera.start();
-
-        // Init renderer and start render loop
+        // Init renderer and start render loop (projector mode — no camera)
         Renderer.init();
         requestAnimationFrame((t) => Renderer.loop(t));
 
