@@ -114,18 +114,19 @@ const Renderer = {
                 anchor._deviceType = device.type;
 
                 // Assign a hue based on device type instead of sampling camera
+                // hue: degrees (0-360), saturation: 0-100, brightness: 0-100
                 if (device.type === 'Wi-Fi AP') {
-                    anchor.params.hue = 0.08;       // warm orange
-                    anchor.params.saturation = 0.7;
-                    anchor.params.brightness = 0.6;
+                    anchor.params.hue = 25;          // warm orange
+                    anchor.params.saturation = 80;
+                    anchor.params.brightness = 55;
                 } else if (device.type === 'Bluetooth') {
-                    anchor.params.hue = 0.6;         // blue-ish
-                    anchor.params.saturation = 0.65;
-                    anchor.params.brightness = 0.5;
+                    anchor.params.hue = 220;         // blue
+                    anchor.params.saturation = 75;
+                    anchor.params.brightness = 50;
                 } else {
-                    anchor.params.hue = 0.3;         // green-cyan
-                    anchor.params.saturation = 0.6;
-                    anchor.params.brightness = 0.55;
+                    anchor.params.hue = 160;         // cyan-green
+                    anchor.params.saturation = 70;
+                    anchor.params.brightness = 50;
                 }
                 anchor._buildGradient();
 
