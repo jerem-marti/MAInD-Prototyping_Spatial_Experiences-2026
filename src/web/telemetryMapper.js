@@ -8,7 +8,7 @@
  * ┌────────────────┬───────────────────────────┬──────────────┐
  * │ Visual Param   │ Telemetry Source           │ Output Range │
  * ├────────────────┼───────────────────────────┼──────────────┤
- * │ radiusLimit    │ WiFi mean RSSI             │ 40–250 px    │
+ * │ radiusLimit    │ Per-device RSSI            │ 40–250 px    │
  * │ size           │ Derived from radiusLimit   │ 0.0006–0.004 │
  * │ density        │ Total device count         │ 0.15–1.1     │
  * │ speed          │ Packet activity (minute_vec)│ 0.2–5.0     │
@@ -44,14 +44,19 @@ const TelemetryMapper = {
         const n = ts.norm;
         const st = this._getState(signal);
 
-        // --- radiusLimit: RSSI → proximity → spread ---
-        // Strong signal = nearby = larger blob
+        // --- radiusLimit: per-device RSSI → proximity → spread ---
+        // Each device's own RSSI drives its blob size (stronger = bigger).
+        // Falls back to global mean if per-device RSSI is unavailable.
         const viewportShort = Math.min(
             State.resolution.w || 800,
             State.resolution.h || 600
         );
         const maxRadius = Math.min(viewportShort * 0.35, 250);
-        signal.params.radiusLimit = 40 + n.wifiMeanRssi * (maxRadius - 40);
+        const minRssi = State.minRssiThreshold || -85;
+        const maxRssi = -20;
+        const rawRssi = signal._deviceRssi != null ? signal._deviceRssi : minRssi;
+        const normRssi = Math.max(0, Math.min(1, (rawRssi - minRssi) / (maxRssi - minRssi)));
+        signal.params.radiusLimit = 40 + normRssi * (maxRadius - 40);
 
         // --- size: derived from radiusLimit (locked ratio) ---
         signal.params.size = signal.params.radiusLimit / 65000;
