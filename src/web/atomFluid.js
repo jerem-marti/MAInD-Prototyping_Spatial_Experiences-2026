@@ -1042,74 +1042,68 @@ const AtomFluidEngine = {
      * @returns {void}
      */
     _emitFromAnchors(anchors, dt) {
-        anchors.forEach(anchor => {
-            const p = anchor.params;
-            // Speed scales emitter motion + injection force, NOT dt
-            const speedScale = Math.max(0.05, p.speed); // floor: always alive
+        // ── Collect all splats into a flat array first (CPU work) ──
+        // Then emit them in two batched GPU passes (velocity, density)
+        // to minimise program switches and FBO rebinds.
+        const splatBuf = this._splatBuf || (this._splatBuf = []);
+        splatBuf.length = 0;
 
-            // Advance emitter time by speed-scaled dt
+        for (let ai = 0, aN = anchors.length; ai < aN; ai++) {
+            const anchor = anchors[ai];
+            const p = anchor.params;
+            const speedScale = Math.max(0.05, p.speed);
+
             anchor._time += dt * speedScale;
 
-            // Rebuild gradient if hue changed
             if (anchor._lastGradHue !== p.hue) {
                 anchor._buildGradient();
                 anchor._lastGradHue = p.hue;
             }
 
-            // D: emissionRate controls splat count per frame
             const splatsPerFrame = p.emissionRate * dt;
             const wholeSplats = Math.floor(splatsPerFrame);
             const fractional = splatsPerFrame - wholeSplats;
             const totalSplats = Math.max(1, wholeSplats + (Math.random() < fractional ? 1 : 0));
 
-            // C: radiusLimit clamp
             const rLimit = Math.max(5, p.radiusLimit);
-
-            // G: brightness factor (0-100 → 0.0-2.0 multiplier)
             const brightnessFactor = (p.brightness / 100) * 2.0;
+            const intensity = p.density * 0.15 * brightnessFactor;
+            const size = p.size;
 
-            anchor.microEmitters.forEach((em) => {
+            const emitters = anchor.microEmitters;
+            for (let ei = 0, eN = emitters.length; ei < eN; ei++) {
+                const em = emitters[ei];
                 for (let si = 0; si < totalSplats; si++) {
-                    // C: clamp orbit radius to radiusLimit
                     const orbitR = Math.min(em.radius, rLimit);
                     const angle = em.omega * anchor._time + em.phase;
                     const emitterTime = anchor._time + em.noisePhase * 0.01;
 
-                    // E: coherent noise jitter, clamped to radiusLimit
                     const jitterScale = Math.min(p.anchorJitter, rLimit);
                     const wobbleX = this._noise(emitterTime * 0.7 + em.noisePhase) * jitterScale;
                     const wobbleY = this._noise(emitterTime * 0.9 + em.noisePhase + 50) * jitterScale;
 
-                    // Emitter position (clamped distance from anchor)
                     let offX = Math.cos(angle) * orbitR + wobbleX;
                     let offY = Math.sin(angle) * orbitR + wobbleY;
                     const dist = Math.sqrt(offX * offX + offY * offY);
                     if (dist > rLimit) {
-                        const scale = rLimit / dist;
-                        offX *= scale;
-                        offY *= scale;
+                        const s = rLimit / dist;
+                        offX *= s;
+                        offY *= s;
                     }
                     const ex = anchor.x + offX;
                     const ey = anchor.y + offY;
 
-                    // B: gentle force — reduced ~10× (was 40-100, now 5-15)
                     const rDirX = Math.cos(angle);
                     const rDirY = Math.sin(angle);
                     const noiseX = this._noise(emitterTime * 1.3 + em.noisePhase * 2) * 0.3;
                     const noiseY = this._noise(emitterTime * 1.1 + em.noisePhase * 3) * 0.3;
-                    const forceMag = 5 + (rLimit / 200) * 10; // gentle, scales slightly with radius
+                    const forceMag = 5 + (rLimit / 200) * 10;
                     const dx = (rDirX * em.radialBias + noiseX) * forceMag * speedScale;
                     const dy = (rDirY * em.radialBias + noiseY) * forceMag * speedScale;
 
-                    // Gradient palette colour with per-emitter offset + signal saturation
                     const t = Math.random();
-                    // D: constant per-splat intensity (not inversely scaled)
-                    // G: brightness multiplies final RGB
-                    const intensity = p.density * 0.15 * brightnessFactor;
-
-                    let color;
+                    let cr, cg, cb;
                     if (anchor.color) {
-                        // Keep camera-sampled chroma, but allow H/S/B to tint it.
                         const rVar = (Math.random() - 0.5) * 0.05;
                         const gVar = (Math.random() - 0.5) * 0.05;
                         const bVar = (Math.random() - 0.5) * 0.05;
@@ -1121,22 +1115,55 @@ const AtomFluidEngine = {
                         const hslTone = this._hslToRGB(p.hue + em.colorOffset * 0.5, p.saturation, p.brightness);
                         const satMix = Math.max(0.15, Math.min(0.85, p.saturation / 100));
                         const blended = this._mixRgb(sampled, hslTone, satMix);
-                        color = [
-                            blended[0] * intensity,
-                            blended[1] * intensity,
-                            blended[2] * intensity
-                        ];
+                        cr = blended[0] * intensity;
+                        cg = blended[1] * intensity;
+                        cb = blended[2] * intensity;
                     } else {
                         const rgb = this._lerpGradientRGB(anchor.colorGradient, t, em.colorOffset, p.saturation);
-                        color = [rgb[0] * intensity, rgb[1] * intensity, rgb[2] * intensity];
+                        cr = rgb[0] * intensity;
+                        cg = rgb[1] * intensity;
+                        cb = rgb[2] * intensity;
                     }
 
-                    this._splat(ex, ey, dx, dy, color, p.size);
+                    splatBuf.push(ex, ey, dx, dy, cr, cg, cb, size);
                     anchor._splatCount++;
                     this._totalSplats++;
                 }
-            });
-        });
+            }
+        }
+
+        // ── Batched GPU emission: velocity pass, then density pass ──
+        // Keeps the splat program bound and avoids re-binding per splat.
+        const n = splatBuf.length >> 3;  // 8 floats per splat
+        if (n === 0) return;
+
+        const gl = this.gl, c = this.canvas, prog = this._programs.splat;
+        const aspect = c.width / c.height;
+        const invW = 1.0 / c.width, invH = 1.0 / c.height;
+        prog.bind();
+        gl.uniform1f(prog.uniforms.aspectRatio, aspect);
+
+        // Velocity pass
+        for (let i = 0; i < n; i++) {
+            const o = i << 3;
+            gl.uniform1i(prog.uniforms.uTarget, this._velocity.first[2]);
+            gl.uniform2f(prog.uniforms.point, splatBuf[o] * invW, splatBuf[o + 1] * invH);
+            gl.uniform3f(prog.uniforms.color, splatBuf[o + 2], splatBuf[o + 3], 1.0);
+            gl.uniform1f(prog.uniforms.radius, splatBuf[o + 7]);
+            this._blit(this._velocity.second[1]);
+            this._velocity.swap();
+        }
+
+        // Density pass
+        for (let i = 0; i < n; i++) {
+            const o = i << 3;
+            gl.uniform1i(prog.uniforms.uTarget, this._density.first[2]);
+            gl.uniform2f(prog.uniforms.point, splatBuf[o] * invW, splatBuf[o + 1] * invH);
+            gl.uniform3f(prog.uniforms.color, splatBuf[o + 4], splatBuf[o + 5], splatBuf[o + 6]);
+            gl.uniform1f(prog.uniforms.radius, splatBuf[o + 7]);
+            this._blit(this._density.second[1]);
+            this._density.swap();
+        }
     },
 
     /* ── Simulation Step ───────────────────────────────── */
@@ -1156,7 +1183,8 @@ const AtomFluidEngine = {
 
         const gl = this.gl;
         // A: stable solver dt — NEVER multiply by speed
-        const dSec = Math.max(0.001, Math.min(dt / 1000, 0.016));
+        // Allow up to 50ms (20 fps) so the sim stays time-coherent on slow frames
+        const dSec = Math.max(0.001, Math.min(dt / 1000, 0.05));
         this._time += dSec;
 
         // Curl from first anchor or global default
