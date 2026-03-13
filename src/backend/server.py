@@ -14,9 +14,9 @@ from typing import Set
 from aiohttp import web, WSMsgType
 
 STATE_PATH = os.environ.get("GHOST_STATE_PATH",
-             os.path.expanduser("~/shadow_creatures/state/ghost_state.json"))
+             os.path.expanduser("~/shadow-creatures/state/ghost_state.json"))
 WEB_DIR = os.environ.get("WEB_DIR",
-          os.path.expanduser("~/shadow_creatures/web"))
+          os.path.expanduser("~/shadow-creatures/src/web"))
 
 HTTP_PORT = int(os.environ.get("HTTP_PORT", "8080"))
 

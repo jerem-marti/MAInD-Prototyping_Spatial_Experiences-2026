@@ -210,14 +210,14 @@ def atomic_write(path: str, obj: Any):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--kismet", default=os.environ.get("KISMET_URL", "http://127.0.0.1:2501"))
-    ap.add_argument("--user", default=os.environ.get("KISMET_USER", "shadow"))
-    ap.add_argument("--password", default=os.environ.get("KISMET_PASS", ""))
+    ap.add_argument("--user", default=os.environ.get("KISMET_USER", "jermarti"))
+    ap.add_argument("--password", default=os.environ.get("KISMET_PASS", "123 Soleil"))
     ap.add_argument("--out", default=os.environ.get("GHOST_STATE_PATH",
-                     os.path.expanduser("~/shadow_creatures/state/ghost_state.json")))
+                     os.path.expanduser("~/shadow-creatures/state/ghost_state.json")))
     ap.add_argument("--window", type=int, default=60)
     ap.add_argument("--interval", type=float, default=1.0)
     ap.add_argument("--salt-file", default=os.environ.get("SALT_FILE",
-                     os.path.expanduser("~/shadow_creatures/state/salt.txt")))
+                     os.path.expanduser("~/shadow-creatures/state/salt.txt")))
     args = ap.parse_args()
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)

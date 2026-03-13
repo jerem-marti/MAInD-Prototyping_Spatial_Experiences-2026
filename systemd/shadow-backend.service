@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 User=jermarti
-WorkingDirectory=/home/jermarti/maind-deploy
-EnvironmentFile=/home/jermarti/maind-deploy/config/shadow.env
-ExecStart=/usr/bin/python3 /home/jermarti/maind-deploy/src/backend/server.py
+WorkingDirectory=__DEPLOY_DIR__
+EnvironmentFile=__DEPLOY_DIR__/config/shadow.env
+ExecStart=/usr/bin/python3 __DEPLOY_DIR__/src/backend/server.py
 Restart=always
 RestartSec=2
 

@@ -124,11 +124,9 @@ Contents:
 ```conf
 httpd_bind_address=127.0.0.1
 httpd_port=2501
-httpd_username=shadow
-httpd_password=change-this-now
+httpd_username=jermarti
+httpd_password=123 Soleil
 ```
-
-Replace `change-this-now` with a real password. You'll use the same password in `shadow.env`.
 
 ### Test Kismet
 
@@ -143,7 +141,7 @@ sudo kismet --no-ncurses \
 In another terminal, verify devices are detected:
 
 ```bash
-curl -sS --user 'shadow:change-this-now' \
+curl -sS --user 'jermarti:123 Soleil' \
   'http://127.0.0.1:2501/devices/views/phydot11_accesspoints/last-time/-60/devices.prettyjson' | jq length
 ```
 
@@ -180,8 +178,8 @@ Update the paths and Kismet password:
 
 ```env
 KISMET_URL=http://127.0.0.1:2501
-KISMET_USER=shadow
-KISMET_PASS=your-actual-kismet-password
+KISMET_USER=jermarti
+KISMET_PASS="123 Soleil"
 
 GHOST_STATE_PATH=/home/jermarti/shadow-creatures/state/ghost_state.json
 SALT_FILE=/home/jermarti/shadow-creatures/state/salt.txt
@@ -189,8 +187,6 @@ WEB_DIR=/home/jermarti/shadow-creatures/src/web
 
 HTTP_PORT=8080
 ```
-
-Replace `jermarti` with your actual username if different.
 
 ### Create the state directory
 
@@ -222,24 +218,10 @@ Press `Ctrl+C` in each tmux pane to stop, or `tmux kill-session -t shadow`.
 
 ## 8. Install systemd services and kiosk
 
-The install script sets up all services and configures the kiosk autostart.
-
-**Before running**, edit the service files to match your username and deploy path:
+The install script sets up all services and configures the kiosk autostart. It automatically resolves paths using `__DEPLOY_DIR__` placeholders in the service files.
 
 ```bash
 cd ~/shadow-creatures
-
-# Update username and paths in service files
-USERNAME=$(whoami)
-DEPLOY_DIR=$(pwd)
-
-sed -i "s|User=jermarti|User=$USERNAME|g" systemd/shadow-backend.service systemd/shadow-reducer.service
-sed -i "s|/home/jermarti/maind-deploy|$DEPLOY_DIR|g" systemd/shadow-backend.service systemd/shadow-reducer.service
-```
-
-Then run the installer:
-
-```bash
 bash scripts/install_services.sh
 ```
 
