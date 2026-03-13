@@ -113,21 +113,11 @@ const Renderer = {
                 anchor._deviceManuf = device.manuf;
                 anchor._deviceType = device.type;
 
-                // Assign hue from type-specific range + per-device MAC-hash offset
-                // Each type has a distinct hue base; the MAC hash shifts it ±30°
-                // so devices of the same type are visually varied but stay in the same color family.
-                // hue: degrees (0-360), saturation: 0-100, brightness: 0-100
-                const _typeRanges = {
-                    'Wi-Fi AP':     { base: 200, spread: 30, sat: 75, bri: 50 }, // blue/cyan family
-                    'Wi-Fi Client': { base: 140, spread: 30, sat: 70, bri: 50 }, // green/teal family
-                    'Bluetooth':    { base:  30, spread: 30, sat: 80, bri: 55 }, // amber/warm family
-                    'BTLE':         { base:  30, spread: 30, sat: 80, bri: 55 }, // same as BT
-                };
-                const tr = _typeRanges[device.type] || { base: 160, spread: 30, sat: 70, bri: 50 };
-                const hueOffset = this._macToFloat(device.mac) * tr.spread;
-                anchor.params.hue        = ((tr.base + hueOffset) + 360) % 360;
-                anchor.params.saturation = tr.sat;
-                anchor.params.brightness = tr.bri;
+                // Assign hue from MAC hash — full 360° spectrum, unique per device
+                const normHash = (this._macToFloat(device.mac) + 1) * 0.5; // 0–1
+                anchor.params.hue        = normHash * 360;
+                anchor.params.saturation = 75;
+                anchor.params.brightness = 50;
                 anchor._buildGradient();
 
                 State.signals.push(anchor);
