@@ -3,6 +3,7 @@
   "window_s": 60,
   "views": {
     "wifi": "phydot11_accesspoints",
+    "wifi_all": "phy-IEEE802.11",
     "bt": "phybluetooth"
   },
   "wifi": {
@@ -13,7 +14,8 @@
         "last_seen": 1709568590,
         "channel": 6,
         "signal_dbm": -35,
-        "strength": 0.92
+        "strength": 0.92,
+        "burst_rate": 142
       },
       {
         "id": "e5f6b7a89012cdef3456789abcdef0123456789abcdef0123456789abcdef01",
@@ -21,7 +23,18 @@
         "last_seen": 1709568585,
         "channel": 11,
         "signal_dbm": -55,
-        "strength": 0.58
+        "strength": 0.58,
+        "burst_rate": 28
+      }
+    ],
+    "clients": [
+      {
+        "id": "d8e9f0123456789abcdef0123456789abcdef0123456789abcdef0123456789a",
+        "name": "(client)",
+        "last_seen": 1709568588,
+        "signal_dbm": -62,
+        "strength": 0.47,
+        "burst_rate": 15
       }
     ]
   },
@@ -29,19 +42,29 @@
     "devices": [
       {
         "id": "c9d0e1f23456789abcdef0123456789abcdef0123456789abcdef0123456789",
-        "name": "(bt)",
+        "name": "AirPods Pro",
         "last_seen": 1709568580,
         "signal_dbm": -70,
         "strength": 0.33
+      },
+      {
+        "id": "b8c9d0e12345678abcdef0123456789abcdef0123456789abcdef012345678ab",
+        "name": "(bt)",
+        "last_seen": 1709568575,
+        "signal_dbm": -82,
+        "strength": 0.13
       }
     ]
   },
   "telemetry": {
-    "wifi_count": 2,
-    "bt_count": 1,
-    "total_count": 3,
-    "wifi_mean_rssi": -45.0,
-    "wifi_rssi_variance": 14.14,
-    "ble_ratio": 0.3333
+    "wifi_ap_count": 2,
+    "wifi_client_count": 1,
+    "wifi_count": 3,
+    "bt_count": 2,
+    "total_count": 5,
+    "wifi_mean_rssi": -50.67,
+    "wifi_rssi_variance": 11.32,
+    "ble_ratio": 0.4,
+    "wifi_burst_rate": 185
   }
 }

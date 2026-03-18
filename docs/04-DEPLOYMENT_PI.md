@@ -4,9 +4,9 @@ Two deployment approaches are documented below. Start with **Option A** (simple 
 
 ---
 
-## Shared setup (both options)
+## Shared Setup (both options)
 
-### 1. Clone the repo on the Pi
+### 1. Clone the Repo on the Pi
 
 ```bash
 ssh jermarti@PI_IP
@@ -14,7 +14,7 @@ cd ~
 git clone https://github.com/jerem-marti/MAInD-Prototyping_Spatial_Experiences-2026.git maind-deploy
 ```
 
-### 2. Create the environment file
+### 2. Create the Environment File
 
 ```bash
 cp ~/maind-deploy/config/shadow.env.example ~/maind-deploy/config/shadow.env
@@ -23,27 +23,31 @@ nano ~/maind-deploy/config/shadow.env
 
 Set `KISMET_PASS` and verify all paths point to `~/maind-deploy/...`.
 
-### 3. Install dependencies
+### 3. Install Dependencies
 
 ```bash
 bash ~/maind-deploy/scripts/install_pi_deps.sh
 ```
 
-### 4. Install services
+### 4. Install Services
 
-This installs systemd units for the three backend processes and adds the kiosk browser to the desktop's autostart:
+This installs systemd units for the four backend processes and adds the kiosk browser to the desktop's autostart:
 
 ```bash
 bash ~/maind-deploy/scripts/install_services.sh
 ```
 
 What it does:
-- Copies `shadow-kismet.service`, `shadow-reducer.service`, `shadow-backend.service` to `/etc/systemd/system/` (with paths resolved from the deploy directory)
-- Enables all three system services
+- Copies `shadow-kismet.service`, `shadow-reducer.service`, `shadow-backend.service`, `shadow-power.service` to `/etc/systemd/system/` (with paths resolved from the deploy directory)
+- Enables all four system services
 - Detects the active desktop session (`rpd-x` on Pi OS) and appends the kiosk launch command to `~/.config/lxsession/<session>/autostart`
+- Removes lxpanel, pcmanfm, and xscreensaver from autostart for clean kiosk appearance
+- Installs unclutter to hide the mouse cursor
+- Configures power button to ignore single press (X1201 long-press handles shutdown)
+- Caps journald log size and disables core dumps (disk space hardening)
 - Cleans up any old systemd user service from a previous install
 
-### 5. Create the state directory
+### 5. Create the State Directory
 
 ```bash
 mkdir -p ~/maind-deploy/state
@@ -56,13 +60,13 @@ sudo reboot
 ```
 
 After reboot:
-1. **systemd** starts Kismet, Reducer, and Backend
+1. **systemd** starts Kismet, Reducer, Backend, and Power monitor
 2. **lxsession** starts the desktop, then launches Chromium in kiosk mode via `scripts/kiosk.sh`
 3. The kiosk script waits for the backend to respond before opening the browser
 
 ---
 
-## Option A: Simple deployment (git pull)
+## Option A: Simple Deployment (git pull)
 
 After the shared setup above, the project is ready to run. To update:
 
@@ -77,11 +81,11 @@ This restarts all backend services and relaunches the kiosk browser with the new
 
 ---
 
-## Option B: ArchiDep auto-deploy (bare repo + hook)
+## Option B: Auto-Deploy (bare repo + hook)
 
 This adds automated deployment: `git push pi main` from your laptop updates the Pi and restarts services automatically. This is the pattern taught in the ArchiDep course.
 
-### How it works
+### How It Works
 
 ```
 LAPTOP                              RASPBERRY PI
@@ -101,7 +105,7 @@ git push pi main  ──────────►  ~/maind-deploy-repo/     (b
 - **`GIT_DIR`** = the bare repo (git database only, no files)
 - **`GIT_WORK_TREE`** = where the actual code lives (same `~/maind-deploy/` from the clone)
 
-### B1. Create the bare repo on the Pi
+### B1. Create the Bare Repo on the Pi
 
 ```bash
 ssh jermarti@PI_IP
@@ -110,7 +114,7 @@ cd ~/maind-deploy-repo
 git init --bare
 ```
 
-### B2. Install the post-receive hook
+### B2. Install the post-receive Hook
 
 Since `~/maind-deploy/` already exists from the clone:
 
@@ -119,17 +123,17 @@ cp ~/maind-deploy/scripts/deploy/post-receive ~/maind-deploy-repo/hooks/post-rec
 chmod +x ~/maind-deploy-repo/hooks/post-receive
 ```
 
-### B3. Allow passwordless service restart
+### B3. Allow Passwordless Service Restart
 
 The hook needs to restart systemd services. Add to sudoers:
 
 ```bash
 sudo visudo
 # Add this line:
-jermarti ALL=(ALL) NOPASSWD: /bin/systemctl daemon-reload, /bin/systemctl restart shadow-reducer, /bin/systemctl restart shadow-backend, /bin/systemctl restart shadow-kismet
+jermarti ALL=(ALL) NOPASSWD: /usr/bin/systemctl daemon-reload, /usr/bin/systemctl restart shadow-reducer, /usr/bin/systemctl restart shadow-backend, /usr/bin/systemctl restart shadow-kismet, /usr/bin/systemctl restart shadow-power
 ```
 
-### B4. Add the Pi remote on your laptop
+### B4. Add the Pi Remote on Your Laptop
 
 ```bash
 git remote add pi jermarti@PI_IP:/home/jermarti/maind-deploy-repo
@@ -156,6 +160,7 @@ ssh jermarti@PI_IP
 sudo systemctl status shadow-kismet
 sudo systemctl status shadow-reducer
 sudo systemctl status shadow-backend
+sudo systemctl status shadow-power
 journalctl -u shadow-backend -f
 ```
 

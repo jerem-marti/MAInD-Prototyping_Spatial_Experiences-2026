@@ -87,9 +87,9 @@ hciconfig
 
 ```bash
 sudo apt install -y \
-  git curl jq tmux wget gpg \
+  curl jq tmux wget gpg chromium \
   python3-picamera2 python3-aiohttp python3-requests python3-gpiozero \
-  python3-smbus python3-jinja2 \
+  python3-smbus python3-libgpiod python3-jinja2 \
   i2c-tools
 
 sudo usermod -aG video,gpio "$USER" || true
@@ -101,7 +101,7 @@ Or use the script:
 bash scripts/install_pi_deps.sh
 ```
 
-## 8. Enable I2C (for Grove IMU)
+## 8. Enable I2C (for IMU and battery gauge)
 
 ```bash
 sudo raspi-config
@@ -115,7 +115,9 @@ Verify:
 sudo i2cdetect -y 1
 ```
 
-Expected addresses: `0x6A` (IMU), `0x36` (power shield fuel gauge).
+Expected addresses:
+- `0x6A` - LSM6DS IMU (accelerometer/gyroscope)
+- `0x36` - MAX17040 battery fuel gauge (on X1201 UPS)
 
 ## 9. X1201 UPS Power Management
 
@@ -190,7 +192,7 @@ It writes `state/power_state.json` every 5 seconds with:
 {"voltage": 3.934, "soc": 66.4, "ac": true, "charging": true, "ts": 1710085767.0}
 ```
 
-The backend can read this file to broadcast battery/charging status over WebSocket.
+The backend reads battery data directly via I2C and broadcasts it over WebSocket.
 
 Installed by `scripts/install_services.sh`. Logs:
 
@@ -258,7 +260,7 @@ cp config/shadow.env.example config/shadow.env
 nano config/shadow.env
 ```
 
-Set the Kismet password and verify paths.
+Set the Kismet password and verify paths. See `shadow.env.example` for all available options.
 
 ## 12. GPIO (buttons + LEDs + IMU)
 
@@ -266,19 +268,19 @@ Set the Kismet password and verify paths.
 
 Each button is wired between a GPIO and GND (internal pull-ups, no resistor needed):
 
-| Button | GPIO | Physical Pin | GND Pin |
-|---|---|---|---|
-| Snapshot | 12 | pin 32 | pin 30/34 |
-| Mode | 26 | pin 37 | pin 34/39 |
+| Button | GPIO | Physical Pin | GND Pin | Function |
+|---|---|---|---|---|
+| Snapshot | 12 | pin 32 | pin 30/34 | Capture snapshot + Live Photo |
+| Mode | 26 | pin 37 | pin 34/39 | Short: gallery; Long (5s): debug |
 
 ### LEDs
 
 Both LEDs use GPIOs with default pull-down so they go LOW cleanly when the Pi cuts power (POWER_OFF_ON_HALT=1).
 
-| LED | Type | GPIO | Physical Pin |
-|---|---|---|---|
-| Power | Digital (on/off) | 20 | pin 38 |
-| Sense | PWM (breathing) | 13 | pin 33 |
+| LED | Type | GPIO | Physical Pin | Behavior |
+|---|---|---|---|---|
+| Power | Digital (on/off) | 20 | pin 38 | On when backend running |
+| Sense | PWM (breathing) | 13 | pin 33 | Speed varies with device count |
 
 > **Reserved by X1201 power shield:**
 > - GPIO 6 — Power Loss Detection (PLD input). Do **not** use for LEDs or buttons.
@@ -294,6 +296,12 @@ Wired in parallel on the LCD header:
 - **GND** -> any GND pin
 
 IMU must be **3.3V**, not 5V.
+
+Test the IMU:
+
+```bash
+python3 scripts/test/test_lsm6ds_read.py
+```
 
 ## Troubleshooting
 
@@ -316,4 +324,4 @@ IMU must be **3.3V**, not 5V.
 - Check ribbon cable
 - Ensure user is in `video` group: `groups $USER`
 
-See also [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for more.
+See also [06-TROUBLESHOOTING.md](06-TROUBLESHOOTING.md) for more.

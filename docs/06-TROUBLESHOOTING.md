@@ -28,6 +28,11 @@
 - Kismet might not have detected any devices yet (wait ~30s)
 - Check that `KISMET_URL` is correct
 
+### No Wi-Fi clients showing
+- The reducer fetches clients from a separate Kismet view (`phy-IEEE802.11` or `phydot11_all`)
+- Some Kismet installations may not have these views available
+- Check reducer logs for "wifi_all_view_used" in the output
+
 ## Backend
 
 ### MJPEG stream not showing
@@ -44,6 +49,17 @@
 - Find what's using it: `ss -tlnp | grep 8080`
 - Kill the process or change `HTTP_PORT` in `config/shadow.env`
 
+### IMU not broadcasting
+- Check I2C is enabled: `sudo raspi-config` -> Interface Options -> I2C
+- Verify IMU detected: `sudo i2cdetect -y 1` (expect `0x6A`)
+- Test IMU directly: `python3 scripts/test/test_lsm6ds_read.py`
+- Check backend logs for `[IMU]` messages
+
+### Battery not showing
+- Check fuel gauge detected: `sudo i2cdetect -y 1` (expect `0x36`)
+- Check backend logs for `[BAT]` messages
+- Ensure X1201 UPS is properly seated on GPIO header
+
 ## Web Overlay
 
 ### Black screen when signals appear (intermittent)
@@ -52,16 +68,23 @@
 - This prevents Chromium from attempting Y_UV 420 shared-image allocations that crash the VideoCore GPU command buffer
 - The app includes automatic WebGL context-loss detection; if the GPU crashes, the page reloads after 1.5 seconds
 
-### No ghosts displayed
+### No signals displayed
 - Open browser console (F12) for errors
 - Check WebSocket connection status
-- Verify `ghost_state.json` has entries: `cat state/ghost_state.json | jq '.wifi.aps'`
-- For BT: `cat state/ghost_state.json | jq '.bt.devices'`
+- Verify `ghost_state.json` has entries:
+  - Wi-Fi APs: `cat state/ghost_state.json | jq '.wifi.aps'`
+  - Wi-Fi clients: `cat state/ghost_state.json | jq '.wifi.clients'`
+  - Bluetooth: `cat state/ghost_state.json | jq '.bt.devices'`
 
 ### Poor frame rate
-- Reduce MJPEG resolution in `server.py`
+- Reduce MJPEG resolution in `server.py` (default is 1280x720)
 - Close other browser tabs
 - Check Pi CPU usage: `htop`
+
+### Orientation not responding to IMU
+- Check WebSocket is receiving IMU messages (browser console)
+- Verify IMU is working: `python3 scripts/test/test_lsm6ds_read.py`
+- Try toggling orientation source via UI (gyro vs mouse)
 
 ## Systemd Services
 
@@ -75,12 +98,18 @@
 - Usually a missing dependency or wrong path
 - Review `config/shadow.env` for typos
 
+### All four services
+```bash
+sudo systemctl status shadow-kismet shadow-reducer shadow-backend shadow-power
+```
+
 ## GPIO
 
 ### Buttons not responding
-- Check wiring on GPIO 12 (snapshot) and 26 (mode)
-- Ensure user is in `gpio` group
+- Check wiring on GPIO 12 (snapshot) and GPIO 26 (mode/gallery)
+- Ensure user is in `gpio` group: `groups $USER`
 - Test manually: `python3 -c "from gpiozero import Button; b=Button(12); print(b.is_pressed)"`
+- Run test script: `python3 scripts/test/test_buttons.py`
 
 ### LEDs not working
 - Power LED on GPIO 20 (pin 38), Sense LED on GPIO 13 (pin 33)
@@ -150,3 +179,29 @@ Expected: ~3.3V idle, ~0V when pressed.
 - Scan bus: `sudo i2cdetect -y 1` (expect `0x6A`)
 - Verify wiring: SDA on pin 3, SCL on pin 5, 3V3 on pin 1/17
 - IMU must be **3.3V**, not 5V
+
+### IMU readings are erratic
+- Check for loose connections on I2C lines
+- Try reducing IMU broadcast rate in `server.py` (default 50 Hz)
+- Verify complementary filter parameters
+
+## Gallery / Snapshots
+
+### Snapshots not saving
+- Check `SNAP_DIR` path in `config/shadow.env`
+- Verify directory exists and is writable: `ls -la state/snapshots/`
+- Check backend logs for upload errors
+
+### Live Photo not recording
+- Live Photo requires MediaRecorder API support (modern Chromium)
+- Check browser console for recording errors
+- WebM files are saved alongside PNG stills
+
+### Gallery not loading
+- Navigate directly to `http://PI_IP:8080/gallery`
+- Check that `src/gallery/` files exist
+- Verify `GALLERY_DIR` in `config/shadow.env`
+
+### Cannot delete snapshots
+- Check file permissions on `state/snapshots/`
+- Backend must have write access to the directory
