@@ -117,4 +117,8 @@ See [docs/04-DEPLOYMENT_PI.md](docs/04-DEPLOYMENT_PI.md) for full setup.
 
 ## License
 
-Academic project - SUPSI MAIND 2025-2026.
+See [LICENSE](LICENSE) for details.
+
+- **Documentation & media**: CC BY-NC-SA 4.0
+- **Hardware designs**: CERN-OHL-S v2 + NC clause
+- **Source code**: PolyForm Noncommercial 1.0.0
